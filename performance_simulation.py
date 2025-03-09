@@ -83,7 +83,11 @@ class PerformanceAnalyzer:
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
-            if np.sum(trade_dates <= i) % 2 == 1:
+            if swing_performance[-1] <= 0:
+                swing_performance[-1] = 0
+                swing_performance = np.append(swing_performance, np.zeros(self.time - i))
+                break
+            elif np.sum(trade_dates <= i) % 2 == 1:
                 if np.any(trade_dates == i):
                     swing_performance = np.append(swing_performance, swing_performance[-1] * (1-spread) - trade_coast)
                 else:
@@ -132,7 +136,11 @@ class PerformanceAnalyzer:
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
-            if np.sum(trade_dates <= i) % 2 == 1:
+            if swing_performance[-1] <= 0:
+                swing_performance[-1] = 0
+                swing_performance = np.append(swing_performance, np.zeros(self.time - i))
+                break
+            elif np.sum(trade_dates <= i) % 2 == 1:
                 if np.any(trade_dates == i):
                     swing_performance = np.append(swing_performance, swing_performance[-1] * (1-spread) - trade_coast)
                 else:
@@ -172,15 +180,20 @@ class ChartSimulation(PerformanceAnalyzer):
             if self.mode == "constant_timesteps":
                 self.daily_return = self.yearly_return**(1/self.time/(2*self.gain_phase-1)) 
                 self.daily_loss = 1/self.daily_return
-                print("Daily return: ", self.daily_return)
 
             elif self.mode == "constant_gain":
                 self.gain_phase = np.log(self.yearly_return**(1/self.time)/self.daily_loss) / np.log(self.daily_return/self.daily_loss)
                 self.loss_phase = 1 -  self.gain_phase 
-                print("Gain phase: ",  self.gain_phase )
 
             yearly_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
+            
+            print("Simulation parameters: \n")
             print("Yearly return: ", yearly_return)
+            print("Daily return: ", self.daily_return)
+            print("Daily loss: ", self.daily_loss)
+            print("Gain phase: ", self.gain_phase)
+            print("Loss phase: ", self.loss_phase)
+            print("\n")
 
             performance = np.array([self.initial_capital])
             phase = np.zeros(self.time)
@@ -214,7 +227,7 @@ class ChartImport(PerformanceAnalyzer):
         if normalize:
             self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_capital / self.import_data_df['Value'].iloc[0]
 
-        self.import_data_np = self.import_data_df['Value'].to_numpy()
+        self.performance = self.import_data_df['Value'].to_numpy()
 
         return self.import_data_df
 
