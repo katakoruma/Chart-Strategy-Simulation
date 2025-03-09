@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from performance_simulation import PerformanceSimulation
+from performance_simulation import *
 
 @pytest.fixture
 def simulation():
@@ -12,7 +12,7 @@ def simulation():
     dt = 15
     time = 261
     mode = "constant_timesteps"
-    return PerformanceSimulation(yearly_return, daily_return, daily_loss, gain_phase, loss_phase, time, dt, mode)
+    return ChartSimulation(yearly_return, daily_return, daily_loss, gain_phase, loss_phase, mode, time, dt)
 
 def test_simulate_performance(simulation):
     performance, phase = simulation.simulate_performance()
@@ -33,13 +33,15 @@ def test_swing_trade(simulation):
     assert len(trade_dates) <= 40
 
 def test_load_data(simulation):
-    data = simulation.load_data()
+    ci = ChartImport()
+    data = ci.load_data()
     assert not data.empty
     assert 'Value' in data.columns
     assert len(data) > 0
 
 def test_load_data_normalized(simulation):
-    data = simulation.load_data(normalize=True)
+    ci = ChartImport()
+    data = ci.load_data(normalize=True)
     assert data['Value'].iloc[0] == 1
 
 def test_random_swing_trade_ana(simulation):
