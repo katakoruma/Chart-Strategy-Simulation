@@ -21,17 +21,22 @@ mode = "constant_timesteps"
 
 class PerformanceAnalyzer:
 
-    def __init__(self, time=261, dt=15):
+    def __init__(self, time=261, dt=15, initial_capital=1):
+        self.initial_capital = initial_capital
         self.time = time
         self.dt = dt
 
-    def random_swing_trade(self, phase, trades=5, trade_dates=None):
+    def random_swing_trade(self, phase=None, trades=5, trade_dates=None):
+
+        if phase is None:
+            phase = self.phase
+
         if trade_dates is None:
 
             trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
             trade_dates = np.sort(trade_dates)
 
-        swing_performance = np.array([1])
+        swing_performance = np.array([self.initial_capital])
 
         for i in range(self.time):
             if np.sum(trade_dates <= i) % 2 == 1:
@@ -42,7 +47,10 @@ class PerformanceAnalyzer:
         print('Random Swing Trade:', trade_dates)
         return swing_performance, trade_dates
 
-    def swing_trade(self, phase, trades=20, hold_time=14, time_after_reversel=3, trade_dates=None):
+    def swing_trade(self, phase=None, trades=20, hold_time=14, time_after_reversel=3, trade_dates=None):
+
+        if phase is None:
+            phase = self.phase
 
         if trade_dates is None:
             trade_dates = np.array([])
@@ -59,7 +67,7 @@ class PerformanceAnalyzer:
                 else:
                     i += 1
             
-        swing_performance = np.array([1])
+        swing_performance = np.array([self.initial_capital])
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
@@ -71,7 +79,7 @@ class PerformanceAnalyzer:
         print('Swing Trade:', trade_dates)
         return swing_performance, trade_dates
 
-    def random_swing_trade_ana(self, data=None, set='simulation', trades=5, trade_dates=None):
+    def random_swing_trade_ana(self, data=None, set='simulation', trades=5, trade_dates=None, trade_coast=0, spread=0):
 
         if data is None:
             if set == 'simulation':
@@ -88,7 +96,7 @@ class PerformanceAnalyzer:
             trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
             trade_dates = np.sort(trade_dates)
 
-        swing_performance = np.array([1])
+        swing_performance = np.array([self.initial_capital])
 
         for i in range(self.time):
             if np.sum(trade_dates <= i) % 2 == 1:
@@ -100,7 +108,7 @@ class PerformanceAnalyzer:
         return swing_performance, trade_dates
 
 
-    def swing_trade_ana(self, data=None, set='simulation', smooth_period=5, trades=20, hold_time=14, time_after_reversel=0, trade_dates=None):
+    def swing_trade_ana(self, data=None, set='simulation', smooth_period=5, trades=20, hold_time=14, time_after_reversel=0, trade_dates=None, trade_coast=0, spread=0):
 
         if data is None:
             if set == 'simulation':
@@ -130,7 +138,7 @@ class PerformanceAnalyzer:
                 else:
                     i += 1
             
-        swing_performance = np.array([1])
+        swing_performance = np.array([self.initial_capital])
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
@@ -178,7 +186,7 @@ class ChartSimulation(PerformanceAnalyzer):
             yearly_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
             print("Yearly return: ", yearly_return)
 
-            performance = np.array([1])
+            performance = np.array([self.initial_capital])
             phase = np.zeros(self.time)
 
             rnd = np.random.choice([0, 1], p=[self.loss_phase, self.gain_phase], size=self.time//self.dt)
@@ -208,12 +216,11 @@ class ChartImport(PerformanceAnalyzer):
         self.import_data_df = self.import_data_df[limit]
 
         if normalize:
-            self.import_data_df['Value'] = self.import_data_df['Value'] / self.import_data_df['Value'].iloc[0]
+            self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_capital / self.import_data_df['Value'].iloc[0]
 
         self.import_data_np = self.import_data_df['Value'].to_numpy()
 
         return self.import_data_df
-
 
 
 
