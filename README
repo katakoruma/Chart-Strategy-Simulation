@@ -1,0 +1,58 @@
+# Performance Simulation Project
+
+This project is focused on simulating the performance of trading strategies over a given period. It includes various methods to simulate and analyze trading performance, including constant timesteps, constant gain, and swing trading strategies.
+
+## Key Components
+
+### performance_simulation.py
+
+This script contains the `PerformanceSimulation` class, which is used to simulate trading performance. Key methods include:
+- `simulate_performance`: Simulates the performance based on the specified mode (constant timesteps or constant gain).
+- `random_swing_trade`: Simulates random swing trades.
+- `swing_trade`: Simulates swing trades based on an easy strategy.
+- `load_data`: Loads and optionally normalizes historical data from a CSV file.
+- `random_swing_trade_ana`: Analyzes random swing trades using gradient data.
+- `swing_trade_ana`: Analyzes swing trades using smoothed and gradient data.
+
+### msci_compare.py
+
+This script compares the performance of the simulated trading strategies with historical data from the MSCI World Index. It uses the `PerformanceSimulation` class to load data and perform the analysis.
+
+### tests.py
+
+This script contains unit tests for the `PerformanceSimulation` class using the `pytest` framework. It includes tests for:
+- Simulating performance
+- Random swing trades
+- Swing trades
+- Loading data
+- Analyzing random swing trades
+- Analyzing swing trades
+
+### Trading_Rendite.py
+
+This script calculates the trading returns based on a simple trading strategy. It simulates buying and selling an instrument over a specified number of iterations and calculates the final account balance, total costs, and end value of the instrument.
+
+## Getting Started
+
+To run the simulations and analyses, you will need to have Python and the required libraries installed. You can install the necessary libraries using pip:
+
+```bash
+pip install numpy pandas matplotlib pytest
+```
+
+You can then run the scripts and tests as needed. For example, to run the performance simulation and compare it with historical data, you can execute:
+
+```bash
+python performance_simulation.py
+python msci_compare.py
+```
+
+To run the tests, you can use:
+
+```bash
+pytest tests.py
+```
+
+## Conclusion
+
+This project provides a framework for simulating and analyzing trading performance using various strategies. It includes methods for loading and normalizing historical data, simulating performance, and analyzing the results. The unit tests ensure the correctness of the implemented methods.
