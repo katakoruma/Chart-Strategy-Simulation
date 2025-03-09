@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from performance_simulation import *
 
 dt = 15
-time = 261 * 5
+time = 261 * 1
 
 
 year = 0
