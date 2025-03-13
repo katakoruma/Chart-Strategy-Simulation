@@ -1,6 +1,7 @@
 import numpy as np 
 import pandas as pd
 import matplotlib.pyplot as plt 
+from tqdm import tqdm
 
 class PerformanceAnalyzer:
 
@@ -226,6 +227,61 @@ class ChartImport(PerformanceAnalyzer):
         self.performance = self.import_data_df['Value'].to_numpy()
 
         return self.import_data_df, self.performance
+
+class MonteCarloSimulation:
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def mc_artificial_chart(self, n=1000, time=261, *args, **kwargs):
+
+        sim = ChartSimulation(time=time, **kwargs)
+        
+        self.performance = np.zeros((n, time+1))
+        self.random_swing_performance_analyse = np.zeros((n, time+1))
+        self.swing_performance_analyse = np.zeros((n, time+1))
+
+        for i in tqdm(range(n)):
+            self.performance[i], _ = sim.simulate_performance()
+            self.random_swing_performance_analyse[i], _ = sim.random_swing_trade_ana(self.performance[i], **kwargs)
+            self.swing_performance_analyse[i], _ = sim.swing_trade_ana(self.performance[i], **kwargs)
+
+        self.profit = self.performance[:, -1]
+        self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
+        self.swing_profit = self.swing_performance_analyse[:, -1]
+
+        return self.performance, self.random_swing_performance_analyse, self.swing_performance_analyse
+    
+    def mc_import_chart(self, n=1000, time=261, dt=15, path="990100 - MSCI World Index.csv-2.csv", limit=None, normalize=True):
+
+        performance = np.zeros((n, time+1))
+        phase = np.zeros((n, time))
+
+        for i in range(n):
+            sim = ChartImport(time=time, dt=dt)
+            sim.load_data(path=path, limit=limit, normalize=normalize)
+            performance[i] = sim.performance
+            phase[i] = sim.phase
+
+        return performance, phase
+    
+    def hist_performance(self, bins=50):
+
+        plt.hist(self.profit, bins=bins, alpha=0.5, label="Buy and hold")
+        plt.hist(self.random_swing_profit, bins=bins, alpha=0.5, label="Random swing trade")
+        plt.hist(self.swing_profit, bins=bins, alpha=0.5, label="Swing trade")
+
+        plt.xlabel("Performance")
+        plt.ylabel("Frequency")
+
+        plt.legend()
+        plt.show()
+
+    def print_results(self, accuracy=2):
+
+        print(f"Buy and hold return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)}")
+        print(f"Random swing trade return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)}")
+        print(f"Swing trade return: {round(self.swing_profit.mean(), accuracy)} +/- {round(self.swing_profit.std(), accuracy)}")
 
 
 
