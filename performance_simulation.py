@@ -106,7 +106,7 @@ class PerformanceAnalyzer:
 
         if data is None:
             if set == 'simulation':
-                data = self.performance
+                data = self.performance  
             elif set == 'data':
                 data = self.import_data_np
             else:
@@ -124,7 +124,7 @@ class PerformanceAnalyzer:
             tr = 0
             while i in range(self.time) and tr < trades:
 
-                if data_trend[i] > 0:
+                if data_trend[i] > 0 and i > smooth_period/2 and i < self.time - smooth_period/2:
                     trade_dates = np.append(trade_dates, i + time_after_reversel)
                     trade_dates = np.append(trade_dates, i + time_after_reversel + hold_time)
                     i = i + time_after_reversel + hold_time
@@ -229,7 +229,7 @@ class ChartImport(PerformanceAnalyzer):
 
         self.performance = self.import_data_df['Value'].to_numpy()
 
-        return self.import_data_df
+        return self.import_data_df, self.performance
 
 
 
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     print("Buy and hold return: ", performance[-1])
     print("Random swing trade return analyse: ", random_swing_performance_analyse[-1])
     print("Swing trade return analyse: ", swing_performance_analyse[-1])
-    print("Best return: ", performance[0] * daily_return**(np.sum(phase == 1)) ) 
+    print("Best return: ", performance[0] * sim.daily_return**(np.sum(phase == 1)) ) 
 
     plt.plot(performance, label="Buy and hold")
     plt.plot(swing_performance_analyse, label="Swing trade analyse")
