@@ -79,27 +79,10 @@ class PerformanceAnalyzer:
             trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
             trade_dates = np.sort(trade_dates)
 
-        swing_performance = np.array([self.initial_capital])
-
-        trade_dates = np.sort(trade_dates)
-        for i in range(self.time):
-            if swing_performance[-1] <= 0:
-                swing_performance[-1] = 0
-                swing_performance = np.append(swing_performance, np.zeros(self.time - i))
-                break
-            elif np.sum(trade_dates <= i) % 2 == 1:
-                if np.any(trade_dates == i):
-                    swing_performance = np.append(swing_performance, swing_performance[-1] * (1-spread) - trade_coast)
-                else:
-                    swing_performance = np.append(swing_performance, swing_performance[-1] * (1+ data_gradient[i] / data[i]) )
-            else:
-                if np.any(trade_dates == i):
-                    swing_performance = np.append(swing_performance, swing_performance[-1] - trade_coast)
-                else:
-                    swing_performance = np.append(swing_performance, swing_performance[-1])
+        self.random_swing_performance_analyse = self._compute_swing_performance(data, trade_dates, trade_coast, spread)
         
-        print('Random Swing Trade:', trade_dates)
-        return swing_performance, trade_dates
+        #print('Random Swing Trade:', trade_dates)
+        return self.random_swing_performance_analyse, trade_dates
 
 
     def swing_trade_ana(self, data=None, set='simulation', smooth_period=5, trades=20, hold_time=14, time_after_reversel=0, trade_dates=None, trade_coast=0, spread=0):
@@ -114,7 +97,6 @@ class PerformanceAnalyzer:
 
         data_smooth = self._smooth(data, smooth_period)
         data_trend = np.gradient(data_smooth)
-        data_gradient = np.gradient(data)
 
         if trade_dates is None:
 
@@ -132,7 +114,15 @@ class PerformanceAnalyzer:
                 else:
                     i += 1
             
+        self.swing_performance_analyse = self._compute_swing_performance(data, trade_dates, trade_coast, spread)
+        
+        #print('Swing Trade:', trade_dates)
+        return self.swing_performance_analyse, trade_dates
+    
+    def _compute_swing_performance(self, data, trade_dates, trade_coast, spread):
+
         swing_performance = np.array([self.initial_capital])
+        data_gradient = np.gradient(data)
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
@@ -144,15 +134,14 @@ class PerformanceAnalyzer:
                 if np.any(trade_dates == i):
                     swing_performance = np.append(swing_performance, swing_performance[-1] * (1-spread) - trade_coast)
                 else:
-                    swing_performance = np.append(swing_performance, swing_performance[-1] * (1+ data_gradient[i] / data[i]) )
+                    swing_performance = np.append(swing_performance, swing_performance[-1] * (1 + data_gradient[i]/data[i]) )
             else:
                 if np.any(trade_dates == i):
                     swing_performance = np.append(swing_performance, swing_performance[-1] - trade_coast)
                 else:
                     swing_performance = np.append(swing_performance, swing_performance[-1])
-        
-        print('Swing Trade:', trade_dates)
-        return swing_performance, trade_dates
+
+        return swing_performance
 
 
     def _smooth(self, y, box_pts):
@@ -187,14 +176,6 @@ class ChartSimulation(PerformanceAnalyzer):
 
             yearly_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
             
-            print("Simulation parameters: \n")
-            print("Yearly return: ", yearly_return)
-            print("Daily return: ", self.daily_return)
-            print("Daily loss: ", self.daily_loss)
-            print("Gain phase: ", self.gain_phase)
-            print("Loss phase: ", self.loss_phase)
-            print("\n")
-
             performance = np.array([self.initial_capital])
             phase = np.zeros(self.time)
 
@@ -210,6 +191,21 @@ class ChartSimulation(PerformanceAnalyzer):
             self.phase = phase
 
             return performance, phase
+        
+        def print_results(self):
+
+            print("Simulation parameters: \n")
+            print("Yearly return: ", self.yearly_return)
+            print("Daily return: ", self.daily_return)
+            print("Daily loss: ", self.daily_loss)
+            print("Gain phase: ", self.gain_phase)
+            print("Loss phase: ", self.loss_phase)
+            print("\n")
+
+            print("Buy and hold return: ", self.performance[-1])
+            print("Random swing trade return analyse: ", self.random_swing_performance_analyse[-1])
+            print("Swing trade return analyse: ", self.swing_performance_analyse[-1])
+            print("Best return: ", self.performance[0] * self.daily_return**(np.sum(self.phase == 1)) )
 
 class ChartImport(PerformanceAnalyzer):
 

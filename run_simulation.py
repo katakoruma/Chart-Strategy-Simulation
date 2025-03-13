@@ -39,10 +39,7 @@ performance, phase = sim.simulate_performance()
 random_swing_performance_analyse, trade_dates_random  = sim.random_swing_trade_ana(performance, trades=trades, trade_dates=None, trade_coast=trade_coast, spread=spread)
 swing_performance_analyse, trade_dates = sim.swing_trade_ana(performance, smooth_period=smooth_period, trades=trades, hold_time=hold_time, time_after_reversel=time_after_reversel, trade_dates=None, trade_coast=trade_coast, spread=spread)
 
-print("Buy and hold return: ", performance[-1])
-print("Random swing trade return analyse: ", random_swing_performance_analyse[-1])
-print("Swing trade return analyse: ", swing_performance_analyse[-1])
-print("Best return: ", performance[0] * daily_return**(np.sum(phase == 1)) ) 
+sim.print_results()
 
 plt.plot(performance, label="Buy and hold")
 plt.plot(swing_performance_analyse, label="Swing trade analyse")
