@@ -5,10 +5,21 @@ from tqdm import tqdm
 
 class PerformanceAnalyzer:
 
-    def __init__(self, time=261, dt=15, initial_capital=1, *args, **kwargs):
+    def __init__(self, time=261, dt=15, initial_capital=1, set='simulation', smooth_period=5, max_trades=20,  trades=5, hold_time=14, time_after_reversel=0, trade_coast=0, spread=0, *args, **kwargs):
         self.initial_capital = initial_capital
         self.time = time
         self.dt = dt
+
+        self.set = set
+        self.smooth_period = smooth_period
+        self.max_trades = max_trades
+        self.trades = trades
+        self.hold_time = hold_time
+        self.time_after_reversel = time_after_reversel
+        self.trade_coast = trade_coast
+        self.spread = spread
+
+
 
     def random_swing_trade(self, phase=None, trades=5, trade_dates=None, *args, **kwargs):
 
@@ -31,7 +42,7 @@ class PerformanceAnalyzer:
         # print('Random Swing Trade:', trade_dates)
         return swing_performance, trade_dates
 
-    def swing_trade(self, phase=None, trades=20, hold_time=14, time_after_reversel=3, trade_dates=None, *args, **kwargs):
+    def swing_trade(self, phase=None, trade_dates=None, trades=20, hold_time=14, time_after_reversel=3, *args, **kwargs):
 
         if phase is None:
             phase = self.phase
@@ -63,7 +74,17 @@ class PerformanceAnalyzer:
         # print('Swing Trade:', trade_dates)
         return swing_performance, trade_dates
 
-    def random_swing_trade_ana(self, data=None, set='simulation', trades=5, trade_dates=None, trade_coast=0, spread=0, *args, **kwargs):
+    def random_swing_trade_ana(self, data=None, trade_dates=None, set=None, trades=None, trade_coast=None, spread=None, *args, **kwargs):
+
+        if set is None:
+            set = self.set
+        if trades is None:
+            trades = self.trades
+        if trade_coast is None:
+            trade_coast = self.trade_coast
+        if spread is None:
+            spread = self.spread
+        
 
         if data is None:
             if set == 'simulation':
@@ -86,7 +107,23 @@ class PerformanceAnalyzer:
         return self.random_swing_performance_analyse, trade_dates
 
 
-    def swing_trade_ana(self, data=None, set='simulation', smooth_period=5, trades=20, hold_time=14, time_after_reversel=0, trade_dates=None, trade_coast=0, spread=0, *args, **kwargs):
+    def swing_trade_ana(self, data=None, trade_dates=None, set=None, smooth_period=None, max_trades=None, hold_time=None, time_after_reversel=None, trade_coast=None, spread=None, *args, **kwargs):
+
+        if set is None:
+            set = self.set
+        if smooth_period is None:
+            smooth_period = self.smooth_period
+        if max_trades is None:
+            max_trades = self.max_trades
+        if hold_time is None:
+            hold_time = self.hold_time
+        if time_after_reversel is None:
+            time_after_reversel = self.time_after_reversel
+        if trade_coast is None:
+            trade_coast = self.trade_coast
+        if spread is None:
+            spread = self.spread
+
 
         if data is None:
             if set == 'simulation':
@@ -105,7 +142,7 @@ class PerformanceAnalyzer:
 
             i = 0
             tr = 0
-            while i in range(self.time) and tr < trades:
+            while i in range(self.time) and tr < max_trades:
 
                 if data_trend[i] > 0 and i > smooth_period/2 and i < self.time - smooth_period/2:
                     trade_dates = np.append(trade_dates, i + time_after_reversel)
@@ -193,7 +230,7 @@ class ChartSimulation(PerformanceAnalyzer):
 
             return performance, phase
         
-        def print_results(self):
+        def print_parameters(self):
 
             print("Simulation parameters: \n")
             print("Yearly return: ", self.yearly_return)
@@ -202,6 +239,17 @@ class ChartSimulation(PerformanceAnalyzer):
             print("Gain phase: ", self.gain_phase)
             print("Loss phase: ", self.loss_phase)
             print("\n")
+
+            print("Swing trade parameters: \n")
+            print("Max trades: ", self.max_trades)
+            print("Trades: ", self.trades)
+            print("Hold time: ", self.hold_time)
+            print("Time after reversel: ", self.time_after_reversel)
+            print("Trade coast: ", self.trade_coast)
+            print("Spread: ", self.spread)
+            print("\n")
+        
+        def print_results(self):
 
             print("Buy and hold return: ", self.performance[-1])
             print("Random swing trade return analyse: ", self.random_swing_performance_analyse[-1])
@@ -234,14 +282,14 @@ class MonteCarloSimulation:
         self.chartsim = chartsim
         self.chartimp = chartimp
 
-    def mc_artificial_chart(self, n=1000, time=261, *args, **kwargs):
+    def mc_artificial_chart(self, n=1000, *args, **kwargs):
 
-        if not self.chartsim is None:
-            self.chartsim = ChartSimulation(time=time, **kwargs)
+        if self.chartsim is None:
+            self.chartsim = ChartSimulation(**kwargs)
         
-        self.performance = np.zeros((n, time+1))
-        self.random_swing_performance_analyse = np.zeros((n, time+1))
-        self.swing_performance_analyse = np.zeros((n, time+1))
+        self.performance = np.zeros((n,  self.chartsim.time+1))
+        self.random_swing_performance_analyse = np.zeros((n, self.chartsim.time+1))
+        self.swing_performance_analyse = np.zeros((n, self.chartsim.time+1))
 
         for i in tqdm(range(n)):
             self.performance[i], _ = self.chartsim.simulate_performance()
@@ -267,11 +315,14 @@ class MonteCarloSimulation:
 
         return performance, phase
     
-    def hist_performance(self, bins=50, *args, **kwargs):
+    def hist_performance(self, bins=50, limits=None, *args, **kwargs):
 
-        plt.hist(self.profit, bins=bins, alpha=0.5, label="Buy and hold")
-        plt.hist(self.random_swing_profit, bins=bins, alpha=0.5, label="Random swing trade")
-        plt.hist(self.swing_profit, bins=bins, alpha=0.5, label="Swing trade")
+        if limits is None:
+            limits = (min(np.min(self.profit), np.min(self.random_swing_profit), np.min(self.swing_profit)), max(np.max(self.profit), np.max(self.random_swing_profit), np.max(self.swing_profit)))
+
+        plt.hist(self.profit, bins=bins, range=limits, alpha=0.5, label="Buy and hold")
+        plt.hist(self.random_swing_profit, bins=bins, range=limits, alpha=0.5, label="Random swing trade")
+        plt.hist(self.swing_profit, bins=bins, range=limits, alpha=0.5, label="Swing trade")
 
         plt.xlabel("Performance")
         plt.ylabel("Frequency")
@@ -282,6 +333,15 @@ class MonteCarloSimulation:
         plt.show()
 
     def print_results(self, accuracy=2, *args, **kwargs):
+
+        if not self.chartsim is None:
+            print(f"Parameters of {self.chartsim.__class__.__name__}:\n")
+            self.chartsim.print_parameters()
+            print("\n")
+        if not self.chartimp is None:
+            print(f"Parameters of {self.chartimp.__class__.__name__}: \n")
+            self.chartimp.print_parameters()
+            print("\n")
 
         print(f"Buy and hold return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)}")
         print(f"Random swing trade return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)}")
