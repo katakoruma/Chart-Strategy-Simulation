@@ -1,6 +1,7 @@
 import numpy as np 
 import pandas as pd
 import matplotlib.pyplot as plt 
+import datetime
 from tqdm import tqdm
 
 class PerformanceAnalyzer:
@@ -86,11 +87,11 @@ class PerformanceAnalyzer:
             spread = self.spread
         
 
-        if data is None:
+        if data is None: # To be corrected
             if set == 'simulation':
                 data = self.performance
             elif set == 'data':
-                data = self.import_data_np
+                data = self.performance
             else:
                 raise ValueError('Set must be either simulation or data')
         
@@ -125,11 +126,11 @@ class PerformanceAnalyzer:
             spread = self.spread
 
 
-        if data is None:
+        if data is None: # To be corrected
             if set == 'simulation':
                 data = self.performance  
             elif set == 'data':
-                data = self.import_data_np
+                data = self.performance
             else:
                 raise ValueError('Set must be either simulation or data')
 
@@ -267,14 +268,42 @@ class ChartImport(PerformanceAnalyzer):
             limit = slice(self.time)
 
         self.import_data_df = pd.read_csv(path)
-        self.import_data_df = self.import_data_df[limit]
+        self.import_data_df = self.import_data_df
+        self.import_data_df['Date'] = pd.to_datetime(self.import_data_df['Date'])
 
         if normalize:
             self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_capital / self.import_data_df['Value'].iloc[0]
 
-        self.performance = self.import_data_df['Value'].to_numpy()
+        self.performance = self.import_data_df['Value'].to_numpy()[limit]
+        self.dates = self.import_data_df['Date'].to_numpy()[limit]
 
-        return self.import_data_df, self.performance
+        if normalize:
+            self.performance = self.performance * self.initial_capital / self.performance[0]
+
+        return self.import_data_df
+    
+    def roll_data(self, shift=1, normalize=True, *args, **kwargs):
+
+        self.performance = np.roll(self.performance, -shift)
+        self.dates = np.roll(self.dates, -shift)
+
+        if normalize:
+            self.performance = self.performance * self.initial_capital / self.performance[0]
+
+        return self.performance, self.dates
+    
+    def update_selection(self, limit=None, normalize=True, *args, **kwargs):
+
+        if limit is None:
+            limit = slice(self.time)
+
+        self.performance = self.import_data_df['Value'].to_numpy()[limit]
+        self.dates = self.import_data_df['Date'].to_numpy()[limit]
+
+        if normalize:
+            self.performance = self.performance * self.initial_capital / self.performance[0]
+
+        return self.performance, self.dates
 
 class MonteCarloSimulation:
 
