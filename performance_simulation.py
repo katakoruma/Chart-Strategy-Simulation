@@ -164,7 +164,7 @@ class PerformanceAnalyzer:
         data_gradient = np.gradient(data)
 
         trade_dates = np.sort(trade_dates)
-        for i in range(self.time):
+        for i in range(self.time-1):
             if swing_performance[-1] <= 0:
                 swing_performance[-1] = 0
                 swing_performance = np.append(swing_performance, np.zeros(self.time - i))
@@ -187,6 +187,14 @@ class PerformanceAnalyzer:
         box = np.ones(box_pts)/box_pts
         y_smooth = np.convolve(y, box, mode='same')
         return y_smooth
+    
+    def print_results(self):
+
+        print("Buy and hold return: ", self.performance[-1])
+        print("Random swing trade return analyse: ", self.random_swing_performance_analyse[-1])
+        print("Swing trade return analyse: ", self.swing_performance_analyse[-1])
+        if hasattr(self, 'daily_return'):
+            print("Best return: ", self.performance[0] * self.daily_return**(np.sum(self.phase == 1)))
 
 
 class ChartSimulation(PerformanceAnalyzer):
@@ -223,7 +231,7 @@ class ChartSimulation(PerformanceAnalyzer):
             for i in range(self.time//self.dt):
                 phase[i*self.dt:max((i+1)*self.dt, self.time)] = rnd[i]
 
-            for i in range(self.time):
+            for i in range(self.time-1):
                 performance = np.append(performance, performance[-1] * self.daily_return if phase[i] == 1 else performance[-1] * self.daily_loss)
 
             self.performance = performance
@@ -250,22 +258,23 @@ class ChartSimulation(PerformanceAnalyzer):
             print("Spread: ", self.spread)
             print("\n")
         
-        def print_results(self):
-
-            print("Buy and hold return: ", self.performance[-1])
-            print("Random swing trade return analyse: ", self.random_swing_performance_analyse[-1])
-            print("Swing trade return analyse: ", self.swing_performance_analyse[-1])
-            print("Best return: ", self.performance[0] * self.daily_return**(np.sum(self.phase == 1)) )
 
 class ChartImport(PerformanceAnalyzer):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, path="990100 - MSCI World Index.csv-2.csv", *args, **kwargs):
 
-    def load_data(self, path="990100 - MSCI World Index.csv-2.csv", limit=None, normalize=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.import_data_df = None
+
+        self.path = path
+
+    def load_data(self, path=None, limit=None, normalize=True, *args, **kwargs):
 
         if limit is None:
             limit = slice(self.time)
+        
+        if path is None:
+            path = self.path
 
         self.import_data_df = pd.read_csv(path)
         self.import_data_df = self.import_data_df
@@ -280,7 +289,7 @@ class ChartImport(PerformanceAnalyzer):
         if normalize:
             self.performance = self.performance * self.initial_capital / self.performance[0]
 
-        return self.import_data_df
+        return  self.performance, self.dates
     
     def roll_data(self, shift=1, normalize=True, *args, **kwargs):
 
@@ -304,6 +313,20 @@ class ChartImport(PerformanceAnalyzer):
             self.performance = self.performance * self.initial_capital / self.performance[0]
 
         return self.performance, self.dates
+    
+    def print_parameters(self):
+
+        print("Data parameters: \n")
+        print('path: ', self.path)
+
+        print("Swing trade parameters: \n")
+        print("Max trades: ", self.max_trades)
+        print("Trades: ", self.trades)
+        print("Hold time: ", self.hold_time)
+        print("Time after reversel: ", self.time_after_reversel)
+        print("Trade coast: ", self.trade_coast)
+        print("Spread: ", self.spread)
+        print("\n")
 
 class MonteCarloSimulation:
 
@@ -316,9 +339,9 @@ class MonteCarloSimulation:
         if self.chartsim is None:
             self.chartsim = ChartSimulation(**kwargs)
         
-        self.performance = np.zeros((n,  self.chartsim.time+1))
-        self.random_swing_performance_analyse = np.zeros((n, self.chartsim.time+1))
-        self.swing_performance_analyse = np.zeros((n, self.chartsim.time+1))
+        self.performance = np.zeros((n,  self.chartsim.time))
+        self.random_swing_performance_analyse = np.zeros((n, self.chartsim.time))
+        self.swing_performance_analyse = np.zeros((n, self.chartsim.time))
 
         for i in tqdm(range(n)):
             self.performance[i], _ = self.chartsim.simulate_performance()
@@ -331,18 +354,29 @@ class MonteCarloSimulation:
 
         return self.performance, self.random_swing_performance_analyse, self.swing_performance_analyse
     
-    def mc_import_chart(self, n=1000, time=261, dt=15, path="990100 - MSCI World Index.csv-2.csv", limit=None, normalize=True, *args, **kwargs):
+    def mc_import_chart(self, n=1000, *args, **kwargs):
 
-        performance = np.zeros((n, time+1))
-        phase = np.zeros((n, time))
+        if self.chartimp is None:
+            self.chartimp = ChartImport(**kwargs)
+        
+        if self.chartimp.import_data_df is None:
+            self.chartimp.load_data(**kwargs)
 
-        for i in range(n):
-            self.chartimp = ChartImport(time=time, dt=dt)
-            self.chartimp.load_data(path=path, limit=limit, normalize=normalize)
-            performance[i] = sim.performance
-            phase[i] = sim.phase
+        self.performance = np.zeros((n, self.chartimp.time))
+        self.random_swing_performance_analyse = np.zeros((n, self.chartimp.time))
+        self.swing_performance_analyse = np.zeros((n, self.chartimp.time))
 
-        return performance, phase
+        for i in tqdm(range(n)):
+            self.performance[i], _ = self.chartimp.update_selection(limit=slice(i, self.chartimp.time+i), normalize=True)
+            self.random_swing_performance_analyse[i], _ = self.chartimp.random_swing_trade_ana(self.performance[i], **kwargs)
+            self.swing_performance_analyse[i], _ = self.chartimp.swing_trade_ana(self.performance[i], **kwargs)
+
+        self.profit = self.performance[:, -1]
+        self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
+        self.swing_profit = self.swing_performance_analyse[:, -1]
+
+        return self.performance, self.random_swing_performance_analyse, self.swing_performance_analyse
+
     
     def hist_performance(self, bins=50, limits=None, *args, **kwargs):
 
