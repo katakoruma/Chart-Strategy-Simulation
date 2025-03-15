@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 import datetime
 from tqdm import tqdm
+from joblib import Parallel, delayed
+import multiprocessing
 
 class PerformanceAnalyzer:
 
@@ -93,8 +95,6 @@ class PerformanceAnalyzer:
                 data = self.performance
             else:
                 raise ValueError('Set must be either simulation or data')
-        
-        data_gradient = np.gradient(data)
 
         if trade_dates is None:
 
@@ -166,7 +166,7 @@ class PerformanceAnalyzer:
         for i in range(self.time-1):
             if swing_performance[-1] <= 0:
                 swing_performance[-1] = 0
-                swing_performance = np.append(swing_performance, np.zeros(self.time - i))
+                swing_performance = np.append(swing_performance, np.zeros(self.time -1 -i))
                 break
             elif np.sum(trade_dates <= i) % 2 == 1:
                 if np.any(trade_dates == i):
@@ -321,25 +321,50 @@ class ChartImport(PerformanceAnalyzer):
         print("Spread: ", self.spread)
         print("\n")
 
+def _parallel_sim_computation(i, sim):
+    performance, _ = sim.simulate_performance()
+    random_swing_performance_analyse, _ = sim.random_swing_trade_ana(performance)
+    swing_performance_analyse, _ = sim.swing_trade_ana(performance)
+
+    return performance, random_swing_performance_analyse, swing_performance_analyse
+
+def _parallel_imp_computation(i, imp, stepsize):
+    performance, _ = imp.update_selection(limit=slice(i*stepsize, imp.time + i*stepsize), normalize=True)
+    random_swing_performance_analyse, _ = imp.random_swing_trade_ana(performance)
+    swing_performance_analyse, _ = imp.swing_trade_ana(performance)
+
+    return performance, random_swing_performance_analyse, swing_performance_analyse
+
 class MonteCarloSimulation:
 
-    def __init__(self, chartsim=None, chartimp=None, *args, **kwargs):
+    def __init__(self, chartsim=None, chartimp=None, parallel=True, *args, **kwargs):
         self.chartsim = chartsim
         self.chartimp = chartimp
+        self.parallel = parallel
 
-    def mc_artificial_chart(self, n=1000, *args, **kwargs):
+    def mc_artificial_chart(self, n=1000, parallel=None, *args, **kwargs):
 
         if self.chartsim is None:
             self.chartsim = ChartSimulation(**kwargs)
+
+        if parallel is None:
+            parallel = self.parallel
         
         self.performance = np.zeros((n,  self.chartsim.time))
         self.random_swing_performance_analyse = np.zeros((n, self.chartsim.time))
         self.swing_performance_analyse = np.zeros((n, self.chartsim.time))
 
-        for i in tqdm(range(n)):
-            self.performance[i], _ = self.chartsim.simulate_performance()
-            self.random_swing_performance_analyse[i], _ = self.chartsim.random_swing_trade_ana(self.performance[i], **kwargs)
-            self.swing_performance_analyse[i], _ = self.chartsim.swing_trade_ana(self.performance[i], **kwargs)
+        if parallel:
+            num_cores = multiprocessing.cpu_count()
+            results = Parallel(n_jobs=num_cores)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
+
+            for i in range(n):
+                self.performance[i], self.random_swing_performance_analyse[i], self.swing_performance_analyse[i] = results[i]
+        else:
+            for i in tqdm(range(n)):
+                self.performance[i], _ = self.chartsim.simulate_performance()
+                self.random_swing_performance_analyse[i], _ = self.chartsim.random_swing_trade_ana(self.performance[i], **kwargs)
+                self.swing_performance_analyse[i], _ = self.chartsim.swing_trade_ana(self.performance[i], **kwargs)
 
         self.profit = self.performance[:, -1]
         self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
@@ -347,7 +372,7 @@ class MonteCarloSimulation:
 
         return self.performance, self.random_swing_performance_analyse, self.swing_performance_analyse
     
-    def mc_import_chart(self, n=1000, stepsize=1, *args, **kwargs):
+    def mc_import_chart(self, n=1000, stepsize=1, parallel=None, *args, **kwargs):
 
         if stepsize * n + self.chartimp.time > len(self.chartimp.import_data_df):
             raise ValueError(f"Stepsize * n + time is larger than the length of the data: {stepsize}, n: {n}, time: {self.chartimp.time}, data length: {len(self.chartimp.import_data_df)}")
@@ -358,14 +383,25 @@ class MonteCarloSimulation:
         if self.chartimp.import_data_df is None:
             self.chartimp.load_data(**kwargs)
 
+        if parallel is None:
+            parallel = self.parallel
+
         self.performance = np.zeros((n, self.chartimp.time))
         self.random_swing_performance_analyse = np.zeros((n, self.chartimp.time))
         self.swing_performance_analyse = np.zeros((n, self.chartimp.time))
 
-        for i in tqdm(range(n)):
-            self.performance[i], _ = self.chartimp.update_selection(limit=slice(i*stepsize, self.chartimp.time + i*stepsize), normalize=True)
-            self.random_swing_performance_analyse[i], _ = self.chartimp.random_swing_trade_ana(self.performance[i], **kwargs)
-            self.swing_performance_analyse[i], _ = self.chartimp.swing_trade_ana(self.performance[i], **kwargs)
+        if parallel:
+            num_cores = multiprocessing.cpu_count()
+            results = Parallel(n_jobs=num_cores)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
+
+            for i in range(n):
+                self.performance[i], self.random_swing_performance_analyse[i], self.swing_performance_analyse[i] = results[i]
+        
+        else:
+            for i in tqdm(range(n)):
+                self.performance[i], _ = self.chartimp.update_selection(limit=slice(i*stepsize, self.chartimp.time + i*stepsize), normalize=True)
+                self.random_swing_performance_analyse[i], _ = self.chartimp.random_swing_trade_ana(self.performance[i], **kwargs)
+                self.swing_performance_analyse[i], _ = self.chartimp.swing_trade_ana(self.performance[i], **kwargs)
 
         self.profit = self.performance[:, -1]
         self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
@@ -410,27 +446,5 @@ class MonteCarloSimulation:
 
 if __name__ == "__main__":
 
-    sim = ChartSimulation()
-
-    performance, phase = sim.simulate_performance()
-
-    random_swing_performance_analyse, trade_dates_random  = sim.random_swing_trade_ana()
-    swing_performance_analyse, trade_dates = sim.swing_trade_ana()
-
-    print("Buy and hold return: ", performance[-1])
-    print("Random swing trade return analyse: ", random_swing_performance_analyse[-1])
-    print("Swing trade return analyse: ", swing_performance_analyse[-1])
-    print("Best return: ", performance[0] * sim.daily_return**(np.sum(phase == 1)) ) 
-
-    plt.plot(performance, label="Buy and hold")
-    plt.plot(swing_performance_analyse, label="Swing trade analyse")
-    plt.plot(random_swing_performance_analyse, label="Random swing trade analyse")
-    plt.axhline(1, color="black", linestyle="--")   
-
-    plt.xlabel("Time")
-    plt.ylabel("Performance")
-
-    plt.grid()
-    plt.legend()
-
-    plt.show()
+    mc = MonteCarloSimulation()
+    mc.mc_artificial_chart(n=500)
