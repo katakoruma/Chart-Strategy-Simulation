@@ -6,10 +6,9 @@ from tqdm import tqdm
 
 class PerformanceAnalyzer:
 
-    def __init__(self, time=261, dt=15, initial_capital=1, set='simulation', smooth_period=5, max_trades=20,  trades=5, hold_time=14, time_after_reversel=0, trade_coast=0, spread=0, *args, **kwargs):
+    def __init__(self, time=261, initial_capital=1, set='simulation', smooth_period=5, max_trades=20,  trades=5, hold_time=14, time_after_reversel=0, trade_coast=0, spread=0, *args, **kwargs):
         self.initial_capital = initial_capital
         self.time = time
-        self.dt = dt
 
         self.set = set
         self.smooth_period = smooth_period
@@ -199,11 +198,12 @@ class PerformanceAnalyzer:
 
 class ChartSimulation(PerformanceAnalyzer):
 
-        def __init__(self, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="constant_timesteps", *args, **kwargs):
+        def __init__(self,dt=15, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="constant_timesteps", *args, **kwargs):
             # Call the parent class's __init__ method to initialize inherited attributes
             super().__init__(*args, **kwargs)
             
             # Initialize additional attributes specific to ChartSimulation
+            self.dt = dt
             self.yearly_return = yearly_return
             self.daily_return = daily_return
             self.daily_loss = daily_loss
@@ -212,16 +212,17 @@ class ChartSimulation(PerformanceAnalyzer):
             self.mode = mode
             # Additional initialization logic for ChartSimulation
 
-        def simulate_performance(self, *args, **kwargs):
+        def simulate_performance(self, length_of_year=261, *args, **kwargs):
+
             if self.mode == "constant_timesteps":
-                self.daily_return = self.yearly_return**(1/self.time/(2*self.gain_phase-1)) 
+                self.daily_return = self.yearly_return**(1/length_of_year/(2*self.gain_phase-1))
                 self.daily_loss = 1/self.daily_return
 
             elif self.mode == "constant_gain":
-                self.gain_phase = np.log(self.yearly_return**(1/self.time)/self.daily_loss) / np.log(self.daily_return/self.daily_loss)
-                self.loss_phase = 1 -  self.gain_phase 
+                self.gain_phase = np.log(self.yearly_return**(1/length_of_year)/self.daily_loss) / np.log(self.daily_return/self.daily_loss)
+                self.loss_phase = 1 - self.gain_phase 
 
-            yearly_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
+            self.expected_total_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
             
             performance = np.array([self.initial_capital])
             phase = np.zeros(self.time)
@@ -243,6 +244,7 @@ class ChartSimulation(PerformanceAnalyzer):
 
             print("Simulation parameters: \n")
             print("Yearly return: ", self.yearly_return)
+            print("Expected total return: ", self.expected_total_return)
             print("Daily return: ", self.daily_return)
             print("Daily loss: ", self.daily_loss)
             print("Gain phase: ", self.gain_phase)
@@ -261,7 +263,7 @@ class ChartSimulation(PerformanceAnalyzer):
 
 class ChartImport(PerformanceAnalyzer):
 
-    def __init__(self, path="990100 - MSCI World Index.csv-2.csv", *args, **kwargs):
+    def __init__(self, path="data/MSCI_World.csv", *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self.import_data_df = None
@@ -291,16 +293,6 @@ class ChartImport(PerformanceAnalyzer):
 
         return  self.performance, self.dates
     
-    def roll_data(self, shift=1, normalize=True, *args, **kwargs):
-
-        self.performance = np.roll(self.performance, -shift)
-        self.dates = np.roll(self.dates, -shift)
-
-        if normalize:
-            self.performance = self.performance * self.initial_capital / self.performance[0]
-
-        return self.performance, self.dates
-    
     def update_selection(self, limit=None, normalize=True, *args, **kwargs):
 
         if limit is None:
@@ -318,6 +310,7 @@ class ChartImport(PerformanceAnalyzer):
 
         print("Data parameters: \n")
         print('path: ', self.path)
+        print("\n")
 
         print("Swing trade parameters: \n")
         print("Max trades: ", self.max_trades)
@@ -354,7 +347,10 @@ class MonteCarloSimulation:
 
         return self.performance, self.random_swing_performance_analyse, self.swing_performance_analyse
     
-    def mc_import_chart(self, n=1000, *args, **kwargs):
+    def mc_import_chart(self, n=1000, stepsize=1, *args, **kwargs):
+
+        if stepsize * n + self.chartimp.time > len(self.chartimp.import_data_df):
+            raise ValueError(f"Stepsize * n + time is larger than the length of the data: {stepsize}, n: {n}, time: {self.chartimp.time}, data length: {len(self.chartimp.import_data_df)}")
 
         if self.chartimp is None:
             self.chartimp = ChartImport(**kwargs)
@@ -367,7 +363,7 @@ class MonteCarloSimulation:
         self.swing_performance_analyse = np.zeros((n, self.chartimp.time))
 
         for i in tqdm(range(n)):
-            self.performance[i], _ = self.chartimp.update_selection(limit=slice(i, self.chartimp.time+i), normalize=True)
+            self.performance[i], _ = self.chartimp.update_selection(limit=slice(i*stepsize, self.chartimp.time + i*stepsize), normalize=True)
             self.random_swing_performance_analyse[i], _ = self.chartimp.random_swing_trade_ana(self.performance[i], **kwargs)
             self.swing_performance_analyse[i], _ = self.chartimp.swing_trade_ana(self.performance[i], **kwargs)
 
@@ -406,9 +402,9 @@ class MonteCarloSimulation:
             self.chartimp.print_parameters()
             print("\n")
 
-        print(f"Buy and hold return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)}")
-        print(f"Random swing trade return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)}")
-        print(f"Swing trade return: {round(self.swing_profit.mean(), accuracy)} +/- {round(self.swing_profit.std(), accuracy)}")
+        print(f"Buy and hold return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)} (Median: {round(np.median(self.profit), accuracy)})")
+        print(f"Random swing trade return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)} (Median: {round(np.median(self.random_swing_profit), accuracy)})")
+        print(f"Swing trade return: {round(self.swing_profit.mean(), accuracy)} +/- {round(self.swing_profit.std(), accuracy)} (Median: {round(np.median(self.swing_profit), accuracy)})")
 
 
 
