@@ -138,17 +138,20 @@ class PerformanceAnalyzer:
 
         if trade_dates is None:
 
-            trade_dates = np.array([])
+            trade_dates = np.array([0])
 
             i = 0
-            tr = 0
-            while i in range(self.time) and tr < max_trades:
+            while i in range(self.time) and len(trade_dates) < max_trades:
 
-                if data_trend[i] > 0 and i > smooth_period/2 and i < self.time - smooth_period/2:
-                    trade_dates = np.append(trade_dates, i + time_after_reversel)
-                    trade_dates = np.append(trade_dates, i + time_after_reversel + hold_time)
-                    i = i + time_after_reversel + hold_time
-                    tr += 1
+                if i > smooth_period/2 and i < self.time - smooth_period/2:
+                    if data_trend[i] > 0 and len(trade_dates) % 2 == 0:
+                        trade_dates = np.append(trade_dates, i + time_after_reversel)
+                        i = i + hold_time
+                    elif data_trend[i] < 0 and len(trade_dates) % 2 == 1:
+                        trade_dates = np.append(trade_dates, i + time_after_reversel)
+                        i = i + time_after_reversel
+                    else:
+                        i += 1
                 else:
                     i += 1
             
@@ -427,21 +430,30 @@ class MonteCarloSimulation:
         plt.legend()
         plt.show()
 
-    def print_results(self, accuracy=2, *args, **kwargs):
+    def print_results(self, accuracy=2, length_of_year=261, *args, **kwargs):
 
         if not self.chartsim is None:
             print(f"Parameters of {self.chartsim.__class__.__name__}:\n")
             self.chartsim.print_parameters()
+            time = self.chartsim.time
             print("\n")
         if not self.chartimp is None:
             print(f"Parameters of {self.chartimp.__class__.__name__}: \n")
             self.chartimp.print_parameters()
+            time = self.chartimp.time
             print("\n")
 
-        print(f"Buy and hold return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)} (Median: {round(np.median(self.profit), accuracy)})")
-        print(f"Random swing trade return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)} (Median: {round(np.median(self.random_swing_profit), accuracy)})")
-        print(f"Swing trade return: {round(self.swing_profit.mean(), accuracy)} +/- {round(self.swing_profit.std(), accuracy)} (Median: {round(np.median(self.swing_profit), accuracy)})")
+        print(f"Buy and hold return:") 
+        print(f"  Overall return: {round(self.profit.mean(), accuracy)} +/- {round(self.profit.std(), accuracy)} (Median: {round(np.median(self.profit), accuracy)})")
+        print(f"  Yearly return: {round(np.mean(self.profit**(length_of_year/time)), accuracy)} +/- {round(np.std(self.profit**(length_of_year/time)), accuracy)} (Median: {round(np.median(self.profit**(length_of_year/time)), accuracy)}) \n")
 
+        print(f"Random swing trade return analyse:")
+        print(f"  Overall return: {round(self.random_swing_profit.mean(), accuracy)} +/- {round(self.random_swing_profit.std(), accuracy)} (Median: {round(np.median(self.random_swing_profit), accuracy)})")
+        print(f"  Yearly return: {round(np.mean(self.random_swing_profit**(length_of_year/time)), accuracy)} +/- {round(np.std(self.random_swing_profit**(length_of_year/time)), accuracy)} (Median: {round(np.median(self.random_swing_profit**(length_of_year/time)), accuracy)}) \n")
+
+        print(f"Swing trade return analyse:")
+        print(f"  Overall return: {round(self.swing_profit.mean(), accuracy)} +/- {round(self.swing_profit.std(), accuracy)} (Median: {round(np.median(self.swing_profit), accuracy)})")
+        print(f"  Yearly return: {round(np.mean(self.swing_profit**(length_of_year/time)), accuracy)} +/- {round(np.std(self.swing_profit**(length_of_year/time)), accuracy)} (Median: {round(np.median(self.swing_profit**(length_of_year/time)), accuracy)}) \n")
 
 
 if __name__ == "__main__":
