@@ -305,7 +305,7 @@ class PerformanceAnalyzer:
         else:
             dates = np.arange(self.time)
 
-        plt.plot(dates, self.performance, label="Performance")
+        plt.plot(dates, self.performance, label="Index")
         plt.plot(dates, self.buy_and_hold_performance, label="Buy and hold")
         plt.plot(dates, self.swing_performance_analyse, label="Swing trade analyse")
         plt.plot(dates, self.random_swing_performance_analyse, label="Random swing trade analyse")
@@ -324,11 +324,13 @@ class PerformanceAnalyzer:
     
     def print_results(self, accuracy=2, *args, **kwargs):
 
+        print("Initial capital: ", self.initial_capital)
         print("Total money invested: ", self.total_investment)
+        print()
 
         print(f"Index performance:") 
-        print(f"    Absolute: {round(self.performance[-1], accuracy)}, Relative: {round(self.performance[-1]/self.total_investment, accuracy)}")
-        print(f"    Yearly return: {round(self.performance[-1]**(self.length_of_year/self.time), accuracy)}")
+        print(f"    Absolute: {round(self.performance[-1], accuracy)}, Relative: {round(self.performance[-1]/self.initial_capital, accuracy)}")
+        print(f"    Yearly return: {round((self.performance[-1]/self.initial_capital)**(self.length_of_year/self.time), accuracy)}")
         print()
 
         print(f"Buy and hold return:")
@@ -610,14 +612,14 @@ class MonteCarloSimulation:
     
     def hist_performance(self, bins=50, limits=None, *args, **kwargs):
 
-        if limits is None:
+        if limits == 'minmax':
             limits = (min(np.min(self.index_performance), np.min(self.buy_and_hold_profit), np.min(self.random_swing_profit), np.min(self.swing_profit)), 
                       max(np.max(self.index_performance), np.max(self.buy_and_hold_profit), np.max(self.random_swing_profit), np.max(self.swing_profit)))
 
         plt.hist(self.index_performance, bins=bins, range=limits, alpha=0.5, label="Index Performance")
         plt.hist(self.buy_and_hold_profit, bins=bins, range=limits, alpha=0.5, label="Buy and hold performance")
-        plt.hist(self.random_swing_profit, bins=bins, range=limits, alpha=0.5, label="Random swing trade")
         plt.hist(self.swing_profit, bins=bins, range=limits, alpha=0.5, label="Swing trade")
+        plt.hist(self.random_swing_profit, bins=bins, range=limits, alpha=0.5, label="Random swing trade")
 
         plt.xlabel("Performance")
         plt.ylabel("Frequency")
@@ -633,6 +635,7 @@ class MonteCarloSimulation:
             time = self.chartsim.time
             length_of_year = self.chartsim.length_of_year
             total_investment = self.chartsim.total_investment
+            initial_capital = self.chartsim.initial_capital
             # print(f"Parameters of {self.chartsim.__class__.__name__}:\n")
             # self.chartsim.print_parameters()
             # print("\n")
@@ -640,13 +643,18 @@ class MonteCarloSimulation:
             time = self.chartimp.time
             length_of_year = self.chartimp.length_of_year
             total_investment = self.chartimp.total_investment
+            initial_capital = self.chartimp.initial_capital
             # print(f"Parameters of {self.chartimp.__class__.__name__}: \n")
             # self.chartimp.print_parameters()
             # print("\n")
 
+        print("Initial capital: ", initial_capital)
+        print("Total money invested: ", total_investment)
+        print()
+
         print(f"Index performance:")
         print(f"  Overall return: {round(self.index_performance.mean(), accuracy)} +/- {round(self.index_performance.std(), accuracy)} (Median: {round(np.median(self.index_performance), accuracy)})")
-        print(f"  Yearly performance: {round(np.mean((self.index_performance/total_investment)**(length_of_year/time)), accuracy)} +/- {round(np.std((self.index_performance/total_investment)**(length_of_year/time)), accuracy)} (Median: {round(np.median((self.index_performance/total_investment)**(length_of_year/time)), accuracy)})")
+        print(f"  Yearly performance: {round(np.mean((self.index_performance/initial_capital)**(length_of_year/time)), accuracy)} +/- {round(np.std((self.index_performance/initial_capital)**(length_of_year/time)), accuracy)} (Median: {round(np.median((self.index_performance/initial_capital)**(length_of_year/time)), accuracy)})")
         print()
 
         print(f"Buy and hold return:") 
@@ -675,6 +683,15 @@ if __name__ == "__main__":
 
     mc = MonteCarloSimulation()
     mc.mc_artificial_chart(n=500, parallel=True)
+
+    mc.chartsim.simulate_performance()
+    mc.chartsim.buy_and_hold()
+    mc.chartsim.swing_trade_ana()
+    mc.chartsim.random_swing_trade_ana()
+
+
+    mc.chartsim.plot_performance()
+    mc.chartsim.print_results()
 
     mc.hist_performance(bins=50)
     mc.print_results()
