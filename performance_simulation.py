@@ -12,7 +12,7 @@ class PerformanceAnalyzer:
     def __init__(self, 
                  time=261, 
                  length_of_year=261,
-                 initial_capital=1, 
+                 initial_investment=1, 
                  saving_plan=0,
                  saving_plan_period=22,
                  set='simulation', 
@@ -30,11 +30,11 @@ class PerformanceAnalyzer:
         self.time = time
         self.length_of_year = length_of_year
 
-        self.initial_capital = initial_capital
+        self.initial_investment = initial_investment
         self.saving_plan = saving_plan
         self.saving_plan_period = saving_plan_period
 
-        self.total_investment = initial_capital + saving_plan * time//saving_plan_period
+        self.total_investment = initial_investment + saving_plan * (time//saving_plan_period)
 
         self.set = set
         self.smooth_period = smooth_period
@@ -60,7 +60,7 @@ class PerformanceAnalyzer:
             trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
             trade_dates = np.sort(trade_dates)
 
-        swing_performance = np.array([self.initial_capital])
+        swing_performance = np.array([self.initial_investment])
 
         for i in range(self.time):
             if np.sum(trade_dates <= i) % 2 == 1:
@@ -91,7 +91,7 @@ class PerformanceAnalyzer:
                 else:
                     i += 1
             
-        swing_performance = np.array([self.initial_capital])
+        swing_performance = np.array([self.initial_investment])
 
         trade_dates = np.sort(trade_dates)
         for i in range(self.time):
@@ -242,7 +242,7 @@ class PerformanceAnalyzer:
     
     def _compute_swing_performance(self, data, trade_dates, trade_coast, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance):
 
-        swing_performance = np.array([self.initial_capital])
+        swing_performance = np.array([self.initial_investment])
 
         #data_gradient = np.gradient(data)
         data_gradient = data[1:] - data[:-1]
@@ -299,7 +299,7 @@ class PerformanceAnalyzer:
         y_smooth = np.convolve(y, box, mode='same')
         return y_smooth
 
-    def internal_rate_of_return(self, performance=None, initial_capital=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, *args, **kwargs):
+    def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, *args, **kwargs):
         
         if performance == 'buy_and_hold':
             performance = self.buy_and_hold_performance[-1]
@@ -310,8 +310,8 @@ class PerformanceAnalyzer:
         elif type(performance) == float:
             raise ValueError('Performance must be either buy_and_hold, swing_trade or random_swing_trade or a float')
         
-        if initial_capital is None:
-            initial_capital = self.initial_capital
+        if initial_investment is None:
+            initial_investment = self.initial_investment
         if saving_plan is None:
             saving_plan = self.saving_plan
         if saving_plan_period is None:
@@ -324,7 +324,7 @@ class PerformanceAnalyzer:
         if trade_dates is None:
             trade_dates = [i for i in range(self.time) if i % saving_plan_period == 0 and i != 0]
 
-        eq_return = lambda x: initial_capital * x**(time/length_of_year) + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) - performance
+        eq_return = lambda x: initial_investment * x**(time/length_of_year) + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) - performance
 
         return fsolve(eq_return, 1)[0]
 
@@ -355,12 +355,12 @@ class PerformanceAnalyzer:
     
     def print_results(self, accuracy=2, *args, **kwargs):
 
-        print("Initial capital: ", self.initial_capital)
-        print("Total money invested: ", self.total_investment)
+        print("Initial invetment: ", self.initial_investment)
+        print("Total Investment: ", self.total_investment)
         print()
 
-        absoulte_performance, relative_performance = round(self.performance[-1], accuracy), round(self.performance[-1]/self.initial_capital, accuracy)
-        yearly_return = round((self.performance[-1]/self.initial_capital)**(self.length_of_year/self.time), accuracy)
+        absoulte_performance, relative_performance = round(self.performance[-1], accuracy), round(self.performance[-1]/self.initial_investment, accuracy)
+        yearly_return = round((self.performance[-1]/self.initial_investment)**(self.length_of_year/self.time), accuracy)
         print(f"Index performance:") 
         print(f"    Absolute: {absoulte_performance}, Relative: {relative_performance}")
         print(f"    Yearly performance: {yearly_return}")
@@ -410,7 +410,7 @@ class PerformanceAnalyzer:
         print("Time after reversel: ", self.time_after_reversel)
         print("Trade coast: ", self.trade_coast)
         print("Spread: ", self.spread)
-        print("Initial capital: ", self.initial_capital)
+        print("Initial invetment: ", self.initial_investment)
         print("Saving plan: ", self.saving_plan)
         print("Saving plan period: ", self.saving_plan_period)
         print("\n")
@@ -446,7 +446,7 @@ class ChartSimulation(PerformanceAnalyzer):
 
             self.expected_total_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
             
-            performance = np.array([self.initial_capital])
+            performance = np.array([self.initial_investment])
             phase = np.zeros(self.time)
 
             rnd = np.random.choice([0, 1], p=[self.loss_phase, self.gain_phase], size=self.time//self.dt)
@@ -498,13 +498,13 @@ class ChartImport(PerformanceAnalyzer):
         self.import_data_df['Date'] = pd.to_datetime(self.import_data_df['Date'])
 
         if normalize:
-            self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_capital / self.import_data_df['Value'].iloc[0]
+            self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_investment / self.import_data_df['Value'].iloc[0]
 
         self.performance = self.import_data_df['Value'].to_numpy()[limit]
         self.dates = self.import_data_df['Date'].to_numpy()[limit]
 
         if normalize:
-            self.performance = self.performance * self.initial_capital / self.performance[0]
+            self.performance = self.performance * self.initial_investment / self.performance[0]
 
         return  self.performance, self.dates
     
@@ -517,7 +517,7 @@ class ChartImport(PerformanceAnalyzer):
         self.dates = self.import_data_df['Date'].to_numpy()[limit]
 
         if normalize:
-            self.performance = self.performance * self.initial_capital / self.performance[0]
+            self.performance = self.performance * self.initial_investment / self.performance[0]
 
         return self.performance, self.dates
     
@@ -677,7 +677,7 @@ class MonteCarloSimulation:
             time = self.chartsim.time
             length_of_year = self.chartsim.length_of_year
             total_investment = self.chartsim.total_investment
-            initial_capital = self.chartsim.initial_capital
+            initial_investment = self.chartsim.initial_investment
             internal_rate_func = self.chartsim.internal_rate_of_return
             # print(f"Parameters of {self.chartsim.__class__.__name__}:\n")
             # self.chartsim.print_parameters()
@@ -686,18 +686,18 @@ class MonteCarloSimulation:
             time = self.chartimp.time
             length_of_year = self.chartimp.length_of_year
             total_investment = self.chartimp.total_investment
-            initial_capital = self.chartimp.initial_capital
+            initial_investment = self.chartimp.initial_investment
             internal_rate_func = self.chartimp.internal_rate_of_return
             # print(f"Parameters of {self.chartimp.__class__.__name__}: \n")
             # self.chartimp.print_parameters()
             # print("\n")
 
-        print("Initial capital: ", initial_capital)
+        print("Initial invetment: ", initial_investment)
         print("Total money invested: ", total_investment)
         print()
 
         overall_return, overall_std, overall_median = round(self.index_performance.mean(), accuracy), round(self.index_performance.std(), accuracy), round(np.median(self.index_performance), accuracy)
-        yearly_return, yearly_std, yearly_median = round(np.mean((self.index_performance/initial_capital)**(length_of_year/time)), accuracy), round(np.std((self.index_performance/initial_capital)**(length_of_year/time)), accuracy), round(np.median((self.index_performance/initial_capital)**(length_of_year/time)), accuracy)
+        yearly_return, yearly_std, yearly_median = round(np.mean((self.index_performance/initial_investment)**(length_of_year/time)), accuracy), round(np.std((self.index_performance/initial_investment)**(length_of_year/time)), accuracy), round(np.median((self.index_performance/initial_investment)**(length_of_year/time)), accuracy)
         print(f"Index performance:")
         print(f"  Overall return: {overall_return} +/- {overall_std} (Median: {overall_median})")
         print(f"  Yearly performance: {yearly_return} +/- {yearly_std} (Median: {yearly_median})")
