@@ -326,7 +326,9 @@ class PerformanceAnalyzer:
 
         eq_return = lambda x: initial_investment * x**(time/length_of_year) + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) - performance
 
-        return fsolve(eq_return, 1)[0]
+        yearly_performance = (performance/initial_investment)**((length_of_year/time))
+
+        return fsolve(eq_return, yearly_performance)[0]
 
     
     def plot_performance(self, log=False, *args, **kwargs):
@@ -420,7 +422,7 @@ class PerformanceAnalyzer:
 
 class ChartSimulation(PerformanceAnalyzer):
 
-        def __init__(self,dt=15, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="constant_timesteps", *args, **kwargs):
+        def __init__(self,dt=15, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="fixed_gain_phase", *args, **kwargs):
             # Call the parent class's __init__ method to initialize inherited attributes
             super().__init__(*args, **kwargs)
             
@@ -436,13 +438,15 @@ class ChartSimulation(PerformanceAnalyzer):
 
         def simulate_performance(self, *args, **kwargs):
 
-            if self.mode == "constant_timesteps":
+            if self.mode == "fixed_gain_phase":
                 self.daily_return = self.yearly_return**(1/self.length_of_year/(2*self.gain_phase-1))
                 self.daily_loss = 1/self.daily_return
 
-            elif self.mode == "constant_gain":
+            elif self.mode == "fixed_return":
                 self.gain_phase = np.log(self.yearly_return**(1/self.length_of_year)/self.daily_loss) / np.log(self.daily_return/self.daily_loss)
                 self.loss_phase = 1 - self.gain_phase 
+            else:
+                raise ValueError("Mode must be either fixed_gain_phase or fixed_return")
 
             self.expected_total_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
             
