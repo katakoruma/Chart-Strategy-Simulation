@@ -34,7 +34,23 @@ class PerformanceAnalyzer:
         self.saving_plan = saving_plan
         self.saving_plan_period = saving_plan_period
 
-        self.total_investment = initial_investment + saving_plan * (time//saving_plan_period)
+        if type(saving_plan) == dict:
+
+            assert 0 in saving_plan.keys(), 'The saving plan must start at 0'
+            assert all([i <= time//saving_plan_period for i in saving_plan.keys()]), 'There must be less saving plan entries than the number of saving plan periods'
+
+            changing_executions = list(saving_plan.keys())
+            changing_executions.sort()
+
+            saving_plan[time//saving_plan_period] = saving_plan[changing_executions[-1]]
+            changing_executions.append(time//saving_plan_period)
+
+            self.total_investment = initial_investment + np.sum([saving_plan[changing_executions[i]] * (changing_executions[i+1] - changing_executions[i]) for i in range(len(changing_executions)-1)])
+
+        elif type(saving_plan) == float or type(saving_plan) == int:
+            self.total_investment = initial_investment + saving_plan * (time//saving_plan_period)
+        else:
+            raise ValueError('Saving plan must be either a float, an integer or a dictionary')
 
         self.set = set
         self.smooth_period = smooth_period
@@ -252,7 +268,18 @@ class PerformanceAnalyzer:
         payed_transaction_cost = 0
         unused_tax_allowance = tax_allowance
 
+        if type(saving_plan) == dict:
+            saving_plan_dict = saving_plan
+            saving_plan = saving_plan_dict[0]
+        else:
+            saving_plan_dict = None
+
         for i in range(self.time-1):
+
+            if saving_plan_dict is not None: 
+                if i/saving_plan_period in saving_plan_dict.keys(): # If we have a variable saving plan
+                    saving_plan = saving_plan_dict[i/saving_plan_period]
+
             if i % self.length_of_year == 0: # Reset tax allowance after a year
                 unused_tax_allowance = tax_allowance
 
@@ -324,7 +351,23 @@ class PerformanceAnalyzer:
         if trade_dates is None:
             trade_dates = [i for i in range(self.time) if i % saving_plan_period == 0 and i != 0]
 
-        eq_return = lambda x: initial_investment * x**(time/length_of_year) + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) - performance
+
+        def eq_return(x):
+
+            if type(saving_plan) == dict:
+                changing_executions = list(saving_plan.keys())
+                changing_executions.sort()
+
+                return (initial_investment * x**(time/length_of_year) 
+                        + np.sum([saving_plan[changing_executions[j]] 
+                                  * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates[changing_executions[j]:changing_executions[j+1]]]) 
+                          for j in range(len(changing_executions)-1)])
+                        - performance )
+
+            elif type(saving_plan) == float or type(saving_plan) == int:
+                return (initial_investment * x**(time/length_of_year) 
+                        + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) 
+                        - performance )
 
         yearly_performance = (performance/initial_investment)**((length_of_year/time))
 
