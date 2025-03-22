@@ -17,8 +17,7 @@ class PerformanceAnalyzer:
                  saving_plan_period=22,
                  smooth_period=5, 
                  max_trades=20,  
-                 trades=5, 
-                 hold_time=14, 
+                 hold_time=[14,3,7,0], 
                  time_after_reversel=0, 
                  trade_coast=0, 
                  spread=0, 
@@ -53,7 +52,6 @@ class PerformanceAnalyzer:
 
         self.smooth_period = smooth_period
         self.max_trades = max_trades
-        self.trades = trades
         self.hold_time = hold_time
         self.time_after_reversel = time_after_reversel
 
@@ -63,13 +61,25 @@ class PerformanceAnalyzer:
         self.tax_allowance = tax_allowance
 
 
-    def random_swing_trade(self, data=None, trade_dates=None, trades=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
-                               *args, **kwargs):
+    def random_swing_trade(self, 
+                           data=None, 
+                           trade_dates=None, 
+                           max_trades=None, 
+                           hold_time=None,
+                           trade_coast=None, 
+                           spread=None, 
+                           saving_plan=None, 
+                           saving_plan_period=None, 
+                           tax_rate=None, 
+                           tax_allowance=None,
+                           *args, **kwargs):
 
-        if trades is None:
-            trades = self.trades
+        if max_trades is None:
+            max_trades = self.max_trades
         if trade_coast is None:
             trade_coast = self.trade_coast
+        if hold_time is None:
+            hold_time = self.hold_time
         if spread is None:
             spread = self.spread
         if saving_plan is None:
@@ -80,14 +90,21 @@ class PerformanceAnalyzer:
             tax_rate = self.tax_rate
         if tax_allowance is None:
             tax_allowance = self.tax_allowance
-        
-
         if data is None:
             data = self.performance
 
         if trade_dates is None:
-            trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
-            trade_dates = np.sort(trade_dates)
+
+            trade_dates = np.array([])
+            i = 0
+
+            while i in range(self.time) and len(trade_dates) < max_trades-1:
+
+                trade_dates = np.append(trade_dates, i)
+                i += max(1,round(np.random.normal(hold_time[0], hold_time[2])))
+                trade_dates = np.append(trade_dates, i)
+                i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
+
 
         self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_coast, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
         
@@ -95,8 +112,20 @@ class PerformanceAnalyzer:
         return self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax
 
 
-    def swing_trade(self, data=None, trade_dates=None, smooth_period=None, max_trades=None, hold_time=None, time_after_reversel=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
-                         *args, **kwargs):
+    def swing_trade(self, 
+                    data=None, 
+                    trade_dates=None, 
+                    smooth_period=None, 
+                    max_trades=None, 
+                    hold_time=None, 
+                    time_after_reversel=None, 
+                    trade_coast=None, 
+                    spread=None, 
+                    saving_plan=None, 
+                    saving_plan_period=None, 
+                    tax_rate=None, 
+                    tax_allowance=None,
+                    *args, **kwargs):
 
         if smooth_period is None:
             smooth_period = self.smooth_period
@@ -118,9 +147,6 @@ class PerformanceAnalyzer:
             tax_rate = self.tax_rate
         if tax_allowance is None:
             tax_allowance = self.tax_allowance
-        
-
-
         if data is None:
             data = self.performance
 
@@ -130,17 +156,17 @@ class PerformanceAnalyzer:
         if trade_dates is None:
 
             trade_dates = np.array([0])
-
             i = 0
+
             while i in range(self.time) and len(trade_dates) < max_trades:
 
                 if i > smooth_period/2 and i < self.time - smooth_period/2:
                     if data_trend[i] > 0 and len(trade_dates) % 2 == 0:
                         trade_dates = np.append(trade_dates, i + time_after_reversel)
-                        i = i + hold_time
+                        i += hold_time[0]
                     elif data_trend[i] < 0 and len(trade_dates) % 2 == 1:
                         trade_dates = np.append(trade_dates, i + time_after_reversel)
-                        i = i + time_after_reversel
+                        i += hold_time[1]
                     else:
                         i += 1
                 else:
@@ -151,7 +177,14 @@ class PerformanceAnalyzer:
         # print('Swing Trade:', trade_dates)
         return self.swing_performance_analyse, self.swing_transaction_cost, self.swing_tax
     
-    def buy_and_hold(self, data=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
+    def buy_and_hold(self, 
+                     data=None, 
+                     trade_coast=None, 
+                     spread=None, 
+                     saving_plan=None, 
+                     saving_plan_period=None, 
+                     tax_rate=None, 
+                     tax_allowance=None,
                      *args, **kwargs):
 
         if trade_coast is None:
@@ -166,8 +199,6 @@ class PerformanceAnalyzer:
             tax_rate = self.tax_rate
         if tax_allowance is None:
             tax_allowance = self.tax_allowance
-        
-
         if data is None:
             data = self.performance
             
@@ -370,7 +401,6 @@ class PerformanceAnalyzer:
 
         print("\nTrade parameters: \n")
         print("Max trades: ", self.max_trades)
-        print("Trades: ", self.trades)
         print("Smooth period", self.smooth_period)
         print("Hold time: ", self.hold_time)
         print("Time after reversel: ", self.time_after_reversel)
@@ -725,7 +755,7 @@ class MonteCarloSimulation:
 if __name__ == "__main__":
 
     mc = MonteCarloSimulation()
-    mc.mc_artificial_chart(n=500, parallel=True)
+    mc.mc_artificial_chart(n=500, parallel=False)
 
     mc.chartsim.simulate_performance()
     mc.chartsim.buy_and_hold()
