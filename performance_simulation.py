@@ -15,7 +15,6 @@ class PerformanceAnalyzer:
                  initial_investment=1, 
                  saving_plan=0,
                  saving_plan_period=22,
-                 set='simulation', 
                  smooth_period=5, 
                  max_trades=20,  
                  trades=5, 
@@ -52,7 +51,6 @@ class PerformanceAnalyzer:
         else:
             raise ValueError('Saving plan must be either a float, an integer or a dictionary')
 
-        self.set = set
         self.smooth_period = smooth_period
         self.max_trades = max_trades
         self.trades = trades
@@ -65,11 +63,9 @@ class PerformanceAnalyzer:
         self.tax_allowance = tax_allowance
 
 
-    def random_swing_trade(self, data=None, trade_dates=None, set=None, trades=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
+    def random_swing_trade(self, data=None, trade_dates=None, trades=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
                                *args, **kwargs):
 
-        if set is None:
-            set = self.set
         if trades is None:
             trades = self.trades
         if trade_coast is None:
@@ -86,16 +82,10 @@ class PerformanceAnalyzer:
             tax_allowance = self.tax_allowance
         
 
-        if data is None: # To be corrected
-            if set == 'simulation':
-                data = self.performance
-            elif set == 'data':
-                data = self.performance
-            else:
-                raise ValueError('Set must be either simulation or data')
+        if data is None:
+            data = self.performance
 
         if trade_dates is None:
-
             trade_dates = np.random.choice(np.arange(self.time), size=2*trades, replace=False)
             trade_dates = np.sort(trade_dates)
 
@@ -105,11 +95,9 @@ class PerformanceAnalyzer:
         return self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax
 
 
-    def swing_trade(self, data=None, trade_dates=None, set=None, smooth_period=None, max_trades=None, hold_time=None, time_after_reversel=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
+    def swing_trade(self, data=None, trade_dates=None, smooth_period=None, max_trades=None, hold_time=None, time_after_reversel=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
                          *args, **kwargs):
 
-        if set is None:
-            set = self.set
         if smooth_period is None:
             smooth_period = self.smooth_period
         if max_trades is None:
@@ -133,13 +121,8 @@ class PerformanceAnalyzer:
         
 
 
-        if data is None: # To be corrected
-            if set == 'simulation':
-                data = self.performance  
-            elif set == 'data':
-                data = self.performance
-            else:
-                raise ValueError('Set must be either simulation or data')
+        if data is None:
+            data = self.performance
 
         data_smooth = self._smooth(data, smooth_period)
         data_trend = np.gradient(data_smooth)
@@ -168,11 +151,9 @@ class PerformanceAnalyzer:
         # print('Swing Trade:', trade_dates)
         return self.swing_performance_analyse, self.swing_transaction_cost, self.swing_tax
     
-    def buy_and_hold(self, data=None, set=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
+    def buy_and_hold(self, data=None, trade_coast=None, spread=None, saving_plan=None, saving_plan_period=None, tax_rate=None, tax_allowance=None,
                      *args, **kwargs):
 
-        if set is None:
-            set = self.set
         if trade_coast is None:
             trade_coast = self.trade_coast
         if spread is None:
@@ -188,12 +169,7 @@ class PerformanceAnalyzer:
         
 
         if data is None:
-            if set == 'simulation':
-                data = self.performance
-            elif set == 'data':
-                data = self.performance
-            else:
-                raise ValueError('Set must be either simulation or data')
+            data = self.performance
             
         trade_dates=np.array([0, self.time-1])
         #trade_dates = np.sort([-1, self.time])
@@ -391,7 +367,6 @@ class PerformanceAnalyzer:
     
         print("General parameters: \n")
         print("Time: ", self.time)
-        print("Set: ", self.set)
 
         print("\nTrade parameters: \n")
         print("Max trades: ", self.max_trades)
