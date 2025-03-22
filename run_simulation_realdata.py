@@ -39,9 +39,9 @@ chim =  ChartImport(  initial_investment=initial_investment, saving_plan=saving_
 
 performance, dates = chim.load_data(path=path, limit=limit)
 
-buy_and_hold_performance = chim.buy_and_hold(set='data')[0]
-random_swing_performance_analyse = chim.random_swing_trade_ana(set='data')[0]
-swing_performance_analyse = chim.swing_trade_ana(set='data')[0]
+buy_and_hold_performance = chim.buy_and_hold()[0]
+random_swing_performance_analyse = chim.random_swing_trade()[0]
+swing_performance_analyse = chim.swing_trade()[0]
 
 
 # %%
@@ -91,6 +91,5 @@ plt.show()
 mc.print_results(accuracy=3)
 
 # %%
-mc.chartsim
 
 

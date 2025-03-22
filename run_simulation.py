@@ -36,8 +36,7 @@ tax_allowance = 1000
 
 initial_investment = 5000
 saving_plan_period = 22
-saving_plan = {12*i: 500 * 1.0**(i*12) for i in range(0,years)}
-#saving_plan = 500
+saving_plan = {12*i: 500 * 1.02**(i*12) for i in range(0,years)}
 
 
 sim = ChartSimulation(yearly_return=yearly_return, daily_return=daily_return, daily_loss=daily_loss, gain_phase=gain_phase, loss_phase=loss_phase, mode=mode, 
@@ -47,9 +46,9 @@ sim = ChartSimulation(yearly_return=yearly_return, daily_return=daily_return, da
 
 performance, phase = sim.simulate_performance()
 
-buy_and_hold_performance = sim.buy_and_hold(set='simulation')[0]
-random_swing_performance_analyse = sim.random_swing_trade_ana(set='simulation')[0]
-swing_performance_analyse = sim.swing_trade_ana(set='simulation')[0]
+buy_and_hold_performance = sim.buy_and_hold()[0]
+random_swing_performance_analyse = sim.random_swing_trade()[0]
+swing_performance_analyse = sim.swing_trade()[0]
 
 # %%
 plt.plot(performance, label="Simulation")
