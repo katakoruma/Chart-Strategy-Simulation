@@ -19,7 +19,7 @@ class PerformanceAnalyzer:
                  max_trades=20,  
                  hold_time=[14,3,7,0], 
                  time_after_reversel=0, 
-                 trade_coast=0, 
+                 trade_cost=[0,0], 
                  spread=0, 
                  tax_rate=0,
                  tax_allowance=0,
@@ -55,7 +55,7 @@ class PerformanceAnalyzer:
         self.hold_time = hold_time
         self.time_after_reversel = time_after_reversel
 
-        self.trade_coast = trade_coast
+        self.trade_cost = trade_cost
         self.spread = spread
         self.tax_rate = tax_rate
         self.tax_allowance = tax_allowance
@@ -66,7 +66,7 @@ class PerformanceAnalyzer:
                            trade_dates=None, 
                            max_trades=None, 
                            hold_time=None,
-                           trade_coast=None, 
+                           trade_cost=None, 
                            spread=None, 
                            saving_plan=None, 
                            saving_plan_period=None, 
@@ -76,8 +76,8 @@ class PerformanceAnalyzer:
 
         if max_trades is None:
             max_trades = self.max_trades
-        if trade_coast is None:
-            trade_coast = self.trade_coast
+        if trade_cost is None:
+            trade_cost = self.trade_cost
         if hold_time is None:
             hold_time = self.hold_time
         if spread is None:
@@ -106,7 +106,7 @@ class PerformanceAnalyzer:
                 i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
 
 
-        self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_coast, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
         
         # print('Random Swing Trade:', trade_dates)
         return self.random_swing_performance_analyse, self.random_swing_transaction_cost, self.random_swing_tax
@@ -119,7 +119,7 @@ class PerformanceAnalyzer:
                     max_trades=None, 
                     hold_time=None, 
                     time_after_reversel=None, 
-                    trade_coast=None, 
+                    trade_cost=None, 
                     spread=None, 
                     saving_plan=None, 
                     saving_plan_period=None, 
@@ -135,8 +135,8 @@ class PerformanceAnalyzer:
             hold_time = self.hold_time
         if time_after_reversel is None:
             time_after_reversel = self.time_after_reversel
-        if trade_coast is None:
-            trade_coast = self.trade_coast
+        if trade_cost is None:
+            trade_cost = self.trade_cost
         if spread is None:
             spread = self.spread
         if saving_plan is None:
@@ -172,14 +172,14 @@ class PerformanceAnalyzer:
                 else:
                     i += 1
             
-        self.swing_performance_analyse, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates, trade_coast, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.swing_performance_analyse, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
 
         # print('Swing Trade:', trade_dates)
         return self.swing_performance_analyse, self.swing_transaction_cost, self.swing_tax
     
     def buy_and_hold(self, 
                      data=None, 
-                     trade_coast=None, 
+                     trade_cost=None, 
                      spread=None, 
                      saving_plan=None, 
                      saving_plan_period=None, 
@@ -187,8 +187,8 @@ class PerformanceAnalyzer:
                      tax_allowance=None,
                      *args, **kwargs):
 
-        if trade_coast is None:
-            trade_coast = self.trade_coast
+        if trade_cost is None:
+            trade_cost = self.trade_cost
         if spread is None:
             spread = self.spread
         if saving_plan is None:
@@ -205,11 +205,11 @@ class PerformanceAnalyzer:
         trade_dates=np.array([0, self.time-1])
         #trade_dates = np.sort([-1, self.time])
             
-        self.buy_and_hold_performance, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = self._compute_performance(data, trade_dates=trade_dates, trade_coast=trade_coast, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.buy_and_hold_performance, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, tax_rate=tax_rate, tax_allowance=tax_allowance)
 
         return self.buy_and_hold_performance, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax
     
-    def _compute_performance(self, data, trade_dates, trade_coast, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance, trade_coast_for_saving_plan=0, consider_loss_for_taxes=True):
+    def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance, consider_loss_for_taxes=True):
 
         swing_performance = np.array([self.initial_investment])
 
@@ -242,19 +242,19 @@ class PerformanceAnalyzer:
                 break
             elif np.sum(trade_dates <= i) % 2 == 1: # If we are in a trade or entering a trade
                 if np.any(trade_dates == i): # If we are entering a trade
-                    swing_performance = np.append(swing_performance, (swing_performance[-1]-trade_coast) * (1-spread))
+                    swing_performance = np.append(swing_performance, (swing_performance[-1]-trade_cost[0]) * (1-spread))
                     value_at_last_trade = swing_performance[-1]
-                    payed_transaction_cost += trade_coast + (swing_performance[-2]-trade_coast) * spread
+                    payed_transaction_cost += trade_cost[0] + (swing_performance[-2]-trade_cost[0]) * spread
                 else: # If we are in a trade
                     swing_performance = np.append(swing_performance, swing_performance[-1] * (1 + data_gradient[i]/data[i]) )
                 if saving_plan != 0 and i % saving_plan_period == 0 and i != 0: # If we have a saving plan
-                    swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_coast_for_saving_plan) * (1-spread) 
-                    value_at_last_trade += (saving_plan-trade_coast_for_saving_plan) * (1-spread)
-                    payed_transaction_cost += trade_coast_for_saving_plan + (saving_plan-trade_coast_for_saving_plan) * spread
+                    swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread) 
+                    value_at_last_trade += (saving_plan-trade_cost[1]) * (1-spread)
+                    payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread
             else:   # If we are not in a trade or exiting a trade
                 if np.any(trade_dates == i): # If we are exiting a trade
-                    swing_performance = np.append(swing_performance, swing_performance[-1] - trade_coast)
-                    payed_transaction_cost += trade_coast
+                    swing_performance = np.append(swing_performance, swing_performance[-1] - trade_cost[0])
+                    payed_transaction_cost += trade_cost[0]
                     if tax_rate != 0 and (swing_performance[-1] > value_at_last_trade or consider_loss_for_taxes): # If we have to pay taxes and we made a profit or if we made a loss and the loss is offset against the tax allowance
                         taxable_profit = swing_performance[-1] - value_at_last_trade
                         if taxable_profit > unused_tax_allowance: # If thhe taxable profit exceeds the tax allowance
@@ -404,7 +404,7 @@ class PerformanceAnalyzer:
         print("Smooth period", self.smooth_period)
         print("Hold time: ", self.hold_time)
         print("Time after reversel: ", self.time_after_reversel)
-        print("Trade coast: ", self.trade_coast)
+        print("Trade coast: ", self.trade_cost[0])
         print("Spread: ", self.spread)
         print("Initial invetment: ", self.initial_investment)
         print("Saving plan: ", self.saving_plan)
