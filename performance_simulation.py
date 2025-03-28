@@ -31,25 +31,57 @@ class PerformanceAnalyzer:
         self.initial_investment = initial_investment
         self.saving_plan = saving_plan
         self.saving_plan_period = saving_plan_period
+        self.investet_over_time = np.array([self.initial_investment])
 
         if type(saving_plan) == dict:
 
-            assert 0 in saving_plan.keys(), 'The saving plan must start at 0'
+            assert 1 in saving_plan.keys(), 'The saving plan must start at 1'
             assert all([i <= time//saving_plan_period for i in saving_plan.keys()]), 'There must be less saving plan entries than the number of saving plan periods'
 
             changing_executions = list(saving_plan.keys())
             changing_executions.sort()
 
-            saving_plan[time//saving_plan_period] = saving_plan[changing_executions[-1]]
-            changing_executions.append(time//saving_plan_period)
+            saving_plan[time//saving_plan_period+1] = saving_plan[changing_executions[-1]]
+            changing_executions.append(time//saving_plan_period+1)
 
             self.total_investment = initial_investment + np.sum([saving_plan[changing_executions[i]] * (changing_executions[i+1] - changing_executions[i]) for i in range(len(changing_executions)-1)])
+            
+            self._saving_plan = np.array([initial_investment])
+            for i in range(time):
+                if i % saving_plan_period == 0 and i != 0:
+                    if i//saving_plan_period in changing_executions:
+                        current_save = saving_plan[i//saving_plan_period]
+                    self._saving_plan = np.append(self._saving_plan, current_save )
+                else:
+                    self._saving_plan = np.append(self._saving_plan, 0)
+
+            self.investet_over_time = np.cumsum(self._saving_plan)
+
+            # for i in range(time):
+            #     if i % saving_plan_period == 0 and i != 0:
+            #         if i//saving_plan_period in changing_executions:
+            #             current_save = saving_plan[i//saving_plan_period]
+            #         self.investet_over_time = np.append(self.investet_over_time, self.investet_over_time[-1] + current_save )
+            #     else:
+            #         self.investet_over_time = np.append(self.investet_over_time, self.investet_over_time[-1])
 
         elif type(saving_plan) == float or type(saving_plan) == int:
             self.total_investment = initial_investment + saving_plan * (time//saving_plan_period)
+
+            self._saving_plan = np.array([initial_investment])
+            for i in range(time):
+                if i % saving_plan_period == 0 and i != 0:
+                    self._saving_plan = np.append(self._saving_plan, saving_plan )
+                else:
+                    self._saving_plan = np.append(self._saving_plan, 0)
+
+            self.investet_over_time = np.cumsum(self._saving_plan)
+        
         else:
             raise ValueError('Saving plan must be either a float, an integer or a dictionary')
-
+        
+        assert np.isclose(self.total_investment, self.investet_over_time[-1]), 'The total investment must be equal to the sum of the investments over time'
+        
         self.smooth_period = smooth_period
         self.max_trades = max_trades
         self.hold_time = hold_time
@@ -223,7 +255,7 @@ class PerformanceAnalyzer:
 
         if type(saving_plan) == dict:
             saving_plan_dict = saving_plan
-            saving_plan = saving_plan_dict[0]
+            saving_plan = saving_plan_dict[1]
         else:
             saving_plan_dict = None
 
@@ -335,6 +367,7 @@ class PerformanceAnalyzer:
             dates = np.arange(self.time)
 
         plt.plot(dates, self.performance, label="Index")
+        plt.plot(dates, self.investet_over_time, label="Investment over time")
         plt.plot(dates, self.buy_and_hold_performance, label="Buy and hold")
         plt.plot(dates, self.swing_performance_analyse, label="Swing trade analyse")
         plt.plot(dates, self.random_swing_performance_analyse, label="Random swing trade analyse")
@@ -753,6 +786,12 @@ class MonteCarloSimulation:
 
 
 if __name__ == "__main__":
+
+    years = 5
+    time = int(261 * years)
+    saving_plan = {12*i+1: 500 * 1.02**(i*12) for i in range(0,years)}
+    #saving_plan = 500
+    sim = ChartSimulation(time=time, saving_plan=saving_plan)
 
     mc = MonteCarloSimulation()
     mc.mc_artificial_chart(n=500, parallel=False)
