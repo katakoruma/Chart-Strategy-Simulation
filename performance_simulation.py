@@ -141,10 +141,10 @@ class PerformanceAnalyzer(object):
                 i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
 
 
-        self.random_swing_performance_analyse, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
         
         # print('Random Swing Trade:', trade_dates)
-        return self.random_swing_performance_analyse,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax
+        return self.random_swing_performance,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax
 
 
     def swing_trade(self, 
@@ -207,10 +207,10 @@ class PerformanceAnalyzer(object):
                 else:
                     i += 1
             
-        self.swing_performance_analyse, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
 
         # print('Swing Trade:', trade_dates)
-        return self.swing_performance_analyse, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax
+        return self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax
     
     def buy_and_hold(self, 
                      data=None, 
@@ -326,9 +326,9 @@ class PerformanceAnalyzer(object):
         if performance == 'buy_and_hold':
             performance = self.buy_and_hold_performance[-1]
         elif performance == 'swing_trade':
-            performance = self.swing_performance_analyse[-1]
+            performance = self.swing_performance[-1]
         elif performance == 'random_swing_trade':
-            performance = self.random_swing_performance_analyse[-1]
+            performance = self.random_swing_performance[-1]
         elif type(performance) == float:
             raise ValueError('Performance must be either buy_and_hold, swing_trade or random_swing_trade or a float')
         
@@ -379,8 +379,8 @@ class PerformanceAnalyzer(object):
         plt.plot(dates, self.performance, label="Index")
         plt.plot(dates, self.investet_over_time, label="Investment over time")
         plt.plot(dates, self.buy_and_hold_performance, label="Buy and hold")
-        plt.plot(dates, self.swing_performance_analyse, label="Swing trade analyse")
-        plt.plot(dates, self.random_swing_performance_analyse, label="Random swing trade analyse")
+        plt.plot(dates, self.swing_performance, label="Swing trade analyse")
+        plt.plot(dates, self.random_swing_performance, label="Random swing trade analyse")
         #plt.axhline(1, color="black", linestyle="--")   
 
         plt.xlabel("Time")
@@ -416,8 +416,8 @@ class PerformanceAnalyzer(object):
         print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}")
         print()
 
-        absoulte_performance, relative_performance = round(self.swing_performance_analyse[-1], accuracy), round(self.swing_performance_analyse[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.swing_performance_analyse[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_performance_analyse[-1]/self.swing_performance_analyse[0], accuracy)
+        absoulte_performance, relative_performance = round(self.swing_performance[-1], accuracy), round(self.swing_performance[-1]/self.total_investment, accuracy)
+        yearly_return, internal_rate, ttwror = round((self.swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_performance[-1]/self.swing_performance[0], accuracy)
         taxes, transaction_cost = round(np.sum(self.swing_tax), accuracy), round(np.sum(self.swing_transaction_cost), accuracy)
         print(f"Swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
@@ -425,8 +425,8 @@ class PerformanceAnalyzer(object):
         print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}")
         print()
 
-        absoulte_performance, relative_performance = round(self.random_swing_performance_analyse[-1], accuracy), round(self.random_swing_performance_analyse[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.random_swing_performance_analyse[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_performance_analyse[-1]/self.random_swing_performance_analyse[0], accuracy)
+        absoulte_performance, relative_performance = round(self.random_swing_performance[-1], accuracy), round(self.random_swing_performance[-1]/self.total_investment, accuracy)
+        yearly_return, internal_rate, ttwror = round((self.random_swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_performance[-1]/self.random_swing_performance[0], accuracy)
         taxes, transaction_cost = round(np.sum(self.random_swing_tax), accuracy), round(np.sum(self.random_swing_transaction_cost), accuracy)
         print(f"Random swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
@@ -447,7 +447,7 @@ class PerformanceAnalyzer(object):
         print("Time after reversel: ", self.time_after_reversel)
         print("Trade coast: ", self.trade_cost[0])
         print("Spread: ", self.spread)
-        print("Initial invetment: ", self.initial_investment)
+        print("Initial investment: ", self.initial_investment)
         print("Saving plan: ", self.saving_plan)
         print("Saving plan period: ", self.saving_plan_period)
         print("\n")
@@ -571,18 +571,18 @@ class ChartImport(PerformanceAnalyzer):
 def _parallel_sim_computation(i, sim):
     performance, _ = sim.simulate_performance()
     buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax = sim.buy_and_hold(performance)
-    random_swing_performance_analyse, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = sim.random_swing_trade(performance)
-    swing_performance_analyse, swing_ttwror, swing_transaction_cost, swing_tax = sim.swing_trade(performance)
+    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = sim.random_swing_trade(performance)
+    swing_performance, swing_ttwror, swing_transaction_cost, swing_tax = sim.swing_trade(performance)
 
-    return performance, buy_and_hold_performance, random_swing_performance_analyse, swing_performance_analyse, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
+    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
 
 def _parallel_imp_computation(i, imp, stepsize):
     performance, _ = imp.update_selection(limit=slice(i*stepsize, imp.time + i*stepsize), normalize=True)
     buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax = imp.buy_and_hold(performance)
-    random_swing_performance_analyse, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = imp.random_swing_trade(performance)
-    swing_performance_analyse,  swing_ttwror, swing_transaction_cost, swing_tax = imp.swing_trade(performance)
+    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = imp.random_swing_trade(performance)
+    swing_performance,  swing_ttwror, swing_transaction_cost, swing_tax = imp.swing_trade(performance)
 
-    return performance, buy_and_hold_performance, random_swing_performance_analyse, swing_performance_analyse, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
+    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
 
 class MonteCarloSimulation:
 
@@ -601,8 +601,8 @@ class MonteCarloSimulation:
         
         self.performance = np.zeros((n,  self.chartsim.time))
         self.buy_and_hold_performance = np.zeros((n, self.chartsim.time))
-        self.random_swing_performance_analyse = np.zeros((n, self.chartsim.time))
-        self.swing_performance_analyse = np.zeros((n, self.chartsim.time))
+        self.random_swing_performance = np.zeros((n, self.chartsim.time))
+        self.swing_performance = np.zeros((n, self.chartsim.time))
 
         self.buy_and_hold_ttwror = np.zeros((n, self.chartsim.time))
         self.random_swing_ttwror = np.zeros((n, self.chartsim.time))
@@ -619,8 +619,8 @@ class MonteCarloSimulation:
             for i in range(n):
                 (self.performance[i], 
                  self.buy_and_hold_performance[i], 
-                 self.random_swing_performance_analyse[i], 
-                 self.swing_performance_analyse[i], 
+                 self.random_swing_performance[i], 
+                 self.swing_performance[i], 
                  self.buy_and_hold_ttwror[i],
                  self.random_swing_ttwror[i],
                  self.swing_ttwror[i],
@@ -634,19 +634,19 @@ class MonteCarloSimulation:
             for i in tqdm(range(n)):
                 self.performance[i], _ = self.chartsim.simulate_performance(**kwargs)
                 self.buy_and_hold_performance[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i] = self.chartsim.buy_and_hold(self.performance[i], **kwargs)
-                self.random_swing_performance_analyse[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
-                self.swing_performance_analyse[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
+                self.random_swing_performance[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
+                self.swing_performance[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
 
         self.index_performance = self.performance[:, -1]
         self.buy_and_hold_profit = self.buy_and_hold_performance[:, -1]
-        self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
-        self.swing_profit = self.swing_performance_analyse[:, -1]
+        self.random_swing_profit = self.random_swing_performance[:, -1]
+        self.swing_profit = self.swing_performance[:, -1]
 
         self.buy_and_hold_ttwror = self.buy_and_hold_ttwror[:, -1]
         self.random_swing_ttwror = self.random_swing_ttwror[:, -1]
         self.swing_ttwror = self.swing_ttwror[:, -1]
 
-        return self.performance, self.buy_and_hold_profit, self.random_swing_performance_analyse, self.swing_performance_analyse
+        return self.performance, self.buy_and_hold_profit, self.random_swing_performance, self.swing_performance
     
     def mc_import_chart(self, n=1000, stepsize=1, parallel=None, *args, **kwargs):
 
@@ -664,8 +664,8 @@ class MonteCarloSimulation:
 
         self.performance = np.zeros((n, self.chartimp.time))
         self.buy_and_hold_performance = np.zeros((n, self.chartimp.time))
-        self.random_swing_performance_analyse = np.zeros((n, self.chartimp.time))
-        self.swing_performance_analyse = np.zeros((n, self.chartimp.time))
+        self.random_swing_performance = np.zeros((n, self.chartimp.time))
+        self.swing_performance = np.zeros((n, self.chartimp.time))
 
         self.buy_and_hold_ttwror = np.zeros((n, self.chartimp.time))
         self.random_swing_ttwror = np.zeros((n, self.chartimp.time))
@@ -682,8 +682,8 @@ class MonteCarloSimulation:
             for i in range(n):
                 (self.performance[i], 
                 self.buy_and_hold_performance[i], 
-                self.random_swing_performance_analyse[i], 
-                self.swing_performance_analyse[i], 
+                self.random_swing_performance[i], 
+                self.swing_performance[i], 
                 self.buy_and_hold_ttwror[i],
                 self.random_swing_ttwror[i],
                 self.swing_ttwror[i],
@@ -698,19 +698,19 @@ class MonteCarloSimulation:
             for i in tqdm(range(n)):
                 self.performance[i], _ = self.chartimp.update_selection(limit=slice(i*stepsize, self.chartimp.time + i*stepsize), normalize=True, **kwargs)
                 self.buy_and_hold_performance[i],  self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i] = self.chartimp.buy_and_hold(self.performance[i], **kwargs)
-                self.random_swing_performance_analyse[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartimp.random_swing_trade(self.performance[i], **kwargs)
-                self.swing_performance_analyse[i], self.swing_ttwror[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartimp.swing_trade(self.performance[i], **kwargs)
+                self.random_swing_performance[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartimp.random_swing_trade(self.performance[i], **kwargs)
+                self.swing_performance[i], self.swing_ttwror[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartimp.swing_trade(self.performance[i], **kwargs)
 
         self.index_performance = self.performance[:, -1]
         self.buy_and_hold_profit = self.buy_and_hold_performance[:, -1]
-        self.random_swing_profit = self.random_swing_performance_analyse[:, -1]
-        self.swing_profit = self.swing_performance_analyse[:, -1]
+        self.random_swing_profit = self.random_swing_performance[:, -1]
+        self.swing_profit = self.swing_performance[:, -1]
 
         self.buy_and_hold_ttwror = self.buy_and_hold_ttwror[:, -1]
         self.random_swing_ttwror = self.random_swing_ttwror[:, -1]
         self.swing_ttwror = self.swing_ttwror[:, -1]
 
-        return self.performance, self.buy_and_hold_profit, self.random_swing_performance_analyse, self.swing_performance_analyse
+        return self.performance, self.buy_and_hold_profit, self.random_swing_performance, self.swing_performance
 
     
     def hist_performance(self, bins=50, limits=None, *args, **kwargs):
@@ -753,8 +753,7 @@ class MonteCarloSimulation:
             # self.chartimp.print_parameters()
             # print("\n")
 
-        print("Initial invetment: ", f"{initial_investment:,}")
-        print("Total invetment: ", f"{total_investment:,}")
+        print("Initial investment: ", f"{initial_investment:,}, Total investment: ", f"{total_investment:,}")
         print()
 
         overall_return, overall_std, overall_median = round(self.index_performance.mean(), accuracy), round(self.index_performance.std(), accuracy), round(np.median(self.index_performance), accuracy)
