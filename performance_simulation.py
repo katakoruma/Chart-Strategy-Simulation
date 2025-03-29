@@ -66,7 +66,7 @@ class PerformanceAnalyzer(object):
             self.total_investment = self.initial_investment + np.sum([saving_plan[changing_executions[i]] * (changing_executions[i+1] - changing_executions[i]) for i in range(len(changing_executions)-1)])
             
             self.saving_plan_sched = np.array([self.initial_investment])
-            for i in range(self.time):
+            for i in range(self.time-1):
                 if i % self.saving_plan_period == 0 and i != 0:
                     if i//self.saving_plan_period in changing_executions:
                         current_save = saving_plan[i//self.saving_plan_period]
@@ -80,7 +80,7 @@ class PerformanceAnalyzer(object):
             self.total_investment = self.initial_investment + saving_plan * (self.time//self.saving_plan_period)
 
             self.saving_plan_sched = np.array([self.initial_investment])
-            for i in range(self.time):
+            for i in range(self.time-1):
                 if i % self.saving_plan_period == 0 and i != 0:
                     self.saving_plan_sched = np.append(self.saving_plan_sched, saving_plan )
                 else:
