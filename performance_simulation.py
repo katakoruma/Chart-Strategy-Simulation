@@ -285,12 +285,13 @@ class PerformanceAnalyzer(object):
                     ttwror_factor = ttwror[-1]
                     payed_transaction_cost += trade_cost[0] + (swing_performance[-2]-trade_cost[0]) * spread
                 else: # If we are in a trade
-                    swing_performance = np.append(swing_performance, swing_performance[-1] * (1 + data_gradient[i]/data[i]) )
+                    swing_performance = np.append(swing_performance, swing_performance[-1])
                 if saving_plan != 0 and i % saving_plan_period == 0 and i != 0: # If we have a saving plan
                     value_at_last_trade = [value_at_last_trade[0] + (saving_plan-trade_cost[1]) * (1-spread), swing_performance[-1] + saving_plan]
                     swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread) 
                     ttwror_factor = ttwror[-1]
                     payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread
+                swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) 
             else:   # If we are not in a trade or exiting a trade
                 if np.any(trade_dates == i): # If we are exiting a trade
                     swing_performance = np.append(swing_performance, swing_performance[-1] - trade_cost[0])
