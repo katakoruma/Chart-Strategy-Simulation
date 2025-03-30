@@ -21,6 +21,7 @@ class PerformanceAnalyzer(object):
                  time_after_reversel=0, 
                  trade_cost=[0,0], 
                  spread=0, 
+                 asset_cost=0,
                  tax_rate=0,
                  tax_allowance=0,
                  *args, **kwargs):
@@ -40,6 +41,7 @@ class PerformanceAnalyzer(object):
 
         self.trade_cost = trade_cost
         self.spread = spread
+        self.asset_cost = asset_cost
         self.tax_rate = tax_rate
         self.tax_allowance = tax_allowance
 
@@ -105,6 +107,7 @@ class PerformanceAnalyzer(object):
                            spread=None, 
                            saving_plan=None, 
                            saving_plan_period=None, 
+                           asset_cost=None,
                            tax_rate=None, 
                            tax_allowance=None,
                            *args, **kwargs):
@@ -121,6 +124,8 @@ class PerformanceAnalyzer(object):
             saving_plan = self.saving_plan
         if saving_plan_period is None:
             saving_plan_period = self.saving_plan_period
+        if asset_cost is None:
+            asset_cost = self.asset_cost
         if tax_rate is None:
             tax_rate = self.tax_rate
         if tax_allowance is None:
@@ -141,7 +146,7 @@ class PerformanceAnalyzer(object):
                 i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
 
 
-        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
         
         # print('Random Swing Trade:', trade_dates)
         return self.random_swing_performance,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax
@@ -158,6 +163,7 @@ class PerformanceAnalyzer(object):
                     spread=None, 
                     saving_plan=None, 
                     saving_plan_period=None, 
+                    asset_cost=None,
                     tax_rate=None, 
                     tax_allowance=None,
                     *args, **kwargs):
@@ -178,6 +184,8 @@ class PerformanceAnalyzer(object):
             saving_plan = self.saving_plan
         if saving_plan_period is None:
             saving_plan_period = self.saving_plan_period
+        if asset_cost is None:
+            asset_cost = self.asset_cost
         if tax_rate is None:
             tax_rate = self.tax_rate
         if tax_allowance is None:
@@ -207,7 +215,7 @@ class PerformanceAnalyzer(object):
                 else:
                     i += 1
             
-        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance)
+        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
 
         # print('Swing Trade:', trade_dates)
         return self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax
@@ -218,6 +226,7 @@ class PerformanceAnalyzer(object):
                      spread=None, 
                      saving_plan=None, 
                      saving_plan_period=None, 
+                     asset_cost=None,
                      tax_rate=None, 
                      tax_allowance=None,
                      *args, **kwargs):
@@ -230,6 +239,8 @@ class PerformanceAnalyzer(object):
             saving_plan = self.saving_plan
         if saving_plan_period is None:
             saving_plan_period = self.saving_plan_period
+        if asset_cost is None:
+            asset_cost = self.asset_cost
         if tax_rate is None:
             tax_rate = self.tax_rate
         if tax_allowance is None:
@@ -240,11 +251,11 @@ class PerformanceAnalyzer(object):
         trade_dates=np.array([0, self.time-1])
         #trade_dates = np.sort([-1, self.time])
             
-        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
 
         return self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax
     
-    def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, tax_rate, tax_allowance, consider_loss_for_taxes=True):
+    def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, asset_cost, tax_rate, tax_allowance, consider_loss_for_taxes=True):
 
         swing_performance = np.array([self.initial_investment])
         value_at_last_trade = [self.initial_investment, self.initial_investment]
@@ -291,7 +302,7 @@ class PerformanceAnalyzer(object):
                     swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread) 
                     ttwror_factor = ttwror[-1]
                     payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread
-                swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) 
+                swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - asset_cost)**(1/self.length_of_year)  # Update performance with the data gradient
             else:   # If we are not in a trade or exiting a trade
                 if np.any(trade_dates == i): # If we are exiting a trade
                     swing_performance = np.append(swing_performance, swing_performance[-1] - trade_cost[0])
