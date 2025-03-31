@@ -146,10 +146,10 @@ class PerformanceAnalyzer(object):
                 i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
 
 
-        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
         
         # print('Random Swing Trade:', trade_dates)
-        return self.random_swing_performance,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax
+        return self.random_swing_performance,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost
 
 
     def swing_trade(self, 
@@ -215,10 +215,10 @@ class PerformanceAnalyzer(object):
                 else:
                     i += 1
             
-        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
 
         # print('Swing Trade:', trade_dates)
-        return self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax
+        return self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost
     
     def buy_and_hold(self, 
                      data=None, 
@@ -251,9 +251,9 @@ class PerformanceAnalyzer(object):
         trade_dates=np.array([0, self.time-1])
         #trade_dates = np.sort([-1, self.time])
             
-        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
 
-        return self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax
+        return self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost
     
     def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, asset_cost, tax_rate, tax_allowance, consider_loss_for_taxes=True):
 
@@ -268,6 +268,7 @@ class PerformanceAnalyzer(object):
         trade_dates = np.sort(trade_dates)
         payed_tax = 0
         payed_transaction_cost = 0
+        payed_asset_cost = 0
         unused_tax_allowance = tax_allowance
 
         if type(saving_plan) == dict:
@@ -302,6 +303,7 @@ class PerformanceAnalyzer(object):
                     swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread) 
                     ttwror_factor = ttwror[-1]
                     payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread
+                payed_asset_cost += swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - (1 - asset_cost)**(1/self.length_of_year) )
                 swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - asset_cost)**(1/self.length_of_year)  # Update performance with the data gradient
             else:   # If we are not in a trade or exiting a trade
                 if np.any(trade_dates == i): # If we are exiting a trade
@@ -327,7 +329,7 @@ class PerformanceAnalyzer(object):
 
             ttwror = np.append(ttwror, swing_performance[-1] / value_at_last_trade[1] * ttwror_factor)
 
-        return swing_performance, ttwror, payed_transaction_cost, payed_tax
+        return swing_performance, ttwror, payed_transaction_cost, payed_tax, payed_asset_cost
 
 
     def _smooth(self, y, box_pts):
@@ -423,29 +425,29 @@ class PerformanceAnalyzer(object):
 
         absoulte_performance, relative_performance = round(self.buy_and_hold_performance[-1], accuracy), round(self.buy_and_hold_performance[-1]/self.total_investment, accuracy)
         yearly_return, internal_rate, ttwror = round((self.buy_and_hold_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('buy_and_hold'), accuracy), round(self.buy_and_hold_ttwror[-1], accuracy)
-        taxes, transaction_cost = round(np.sum(self.buy_and_hold_tax), accuracy), round(np.sum(self.buy_and_hold_transaction_cost), accuracy)
+        taxes, transaction_cost, asset_cost = round(self.buy_and_hold_tax, accuracy), round(self.buy_and_hold_transaction_cost, accuracy), round(self.buy_and_hold_asset_cost, accuracy)
         print(f"Buy and hold return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
         print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}")
+        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
         print()
 
         absoulte_performance, relative_performance = round(self.swing_performance[-1], accuracy), round(self.swing_performance[-1]/self.total_investment, accuracy)
         yearly_return, internal_rate, ttwror = round((self.swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_ttwror[-1], accuracy)
-        taxes, transaction_cost = round(np.sum(self.swing_tax), accuracy), round(np.sum(self.swing_transaction_cost), accuracy)
+        taxes, transaction_cost, asset_cost = round(self.swing_tax, accuracy), round(self.swing_transaction_cost, accuracy), round(self.swing_asset_cost, accuracy)
         print(f"Swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
         print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}")
+        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
         print()
 
         absoulte_performance, relative_performance = round(self.random_swing_performance[-1], accuracy), round(self.random_swing_performance[-1]/self.total_investment, accuracy)
         yearly_return, internal_rate, ttwror = round((self.random_swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_ttwror[-1], accuracy)
-        taxes, transaction_cost = round(np.sum(self.random_swing_tax), accuracy), round(np.sum(self.random_swing_transaction_cost), accuracy)
+        taxes, transaction_cost, asset_cost = round(self.random_swing_tax, accuracy), round(self.random_swing_transaction_cost, accuracy), round(self.random_swing_asset_cost, accuracy)
         print(f"Random swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
         print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}")
+        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
         print()
 
 
@@ -599,19 +601,19 @@ class ChartImport(PerformanceAnalyzer):
 
 def _parallel_sim_computation(i, sim):
     performance, _ = sim.simulate_performance()
-    buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax = sim.buy_and_hold(performance)
-    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = sim.random_swing_trade(performance)
-    swing_performance, swing_ttwror, swing_transaction_cost, swing_tax = sim.swing_trade(performance)
+    buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, buy_and_hold_asset_cost = sim.buy_and_hold(performance)
+    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax, random_swing_asset_cost = sim.random_swing_trade(performance)
+    swing_performance, swing_ttwror, swing_transaction_cost, swing_tax, swing_asset_cost = sim.swing_trade(performance)
 
-    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
+    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, buy_and_hold_asset_cost, random_swing_transaction_cost, random_swing_tax, random_swing_asset_cost, swing_transaction_cost, swing_tax, swing_asset_cost
 
 def _parallel_imp_computation(i, imp, stepsize):
     performance, _ = imp.update_selection(limit=slice(i*stepsize, imp.time + i*stepsize), normalize=True)
-    buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax = imp.buy_and_hold(performance)
-    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax = imp.random_swing_trade(performance)
-    swing_performance,  swing_ttwror, swing_transaction_cost, swing_tax = imp.swing_trade(performance)
+    buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, buy_and_hold_asset_cost = imp.buy_and_hold(performance)
+    random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, random_swing_tax, random_swing_asset_cost = imp.random_swing_trade(performance)
+    swing_performance,  swing_ttwror, swing_transaction_cost, swing_tax, swing_asset_cost = imp.swing_trade(performance)
 
-    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, random_swing_transaction_cost, random_swing_tax, swing_transaction_cost, swing_tax
+    return performance, buy_and_hold_performance, random_swing_performance, swing_performance, buy_and_hold_ttwror, random_swing_ttwror, swing_ttwror, buy_and_hold_transaction_cost, buy_and_hold_tax, buy_and_hold_asset_cost, random_swing_transaction_cost, random_swing_tax, random_swing_asset_cost, swing_transaction_cost, swing_tax, swing_asset_cost
 
 class MonteCarloSimulation:
 
@@ -637,34 +639,38 @@ class MonteCarloSimulation:
         self.random_swing_ttwror = np.zeros((n, self.chartsim.time))
         self.swing_ttwror = np.zeros((n, self.chartsim.time))
 
-        self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = np.zeros(n), np.zeros(n)
-        self.random_swing_transaction_cost, self.random_swing_tax = np.zeros(n), np.zeros(n)
-        self.swing_transaction_cost, self.swing_tax = np.zeros(n), np.zeros(n)
+        self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
+        self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
+        self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
             num_cores = multiprocessing.cpu_count()
             results = Parallel(n_jobs=num_cores)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
 
-            for i in range(n):
-                (self.performance[i], 
-                 self.buy_and_hold_performance[i], 
-                 self.random_swing_performance[i], 
-                 self.swing_performance[i], 
-                 self.buy_and_hold_ttwror[i],
-                 self.random_swing_ttwror[i],
-                 self.swing_ttwror[i],
-                 self.buy_and_hold_transaction_cost[i], 
-                 self.buy_and_hold_tax[i], 
-                 self.random_swing_transaction_cost[i], 
-                 self.random_swing_tax[i], 
-                 self.swing_transaction_cost[i], 
-                 self.swing_tax[i]) = results[i]
+            for i in range(n): (
+                self.performance[i], 
+                self.buy_and_hold_performance[i], 
+                self.random_swing_performance[i], 
+                self.swing_performance[i], 
+                self.buy_and_hold_ttwror[i],
+                self.random_swing_ttwror[i],
+                self.swing_ttwror[i],
+                self.buy_and_hold_transaction_cost[i], 
+                self.buy_and_hold_tax[i],
+                self.buy_and_hold_asset_cost[i],
+                self.random_swing_transaction_cost[i], 
+                self.random_swing_tax[i], 
+                self.random_swing_asset_cost[i],
+                self.swing_transaction_cost[i], 
+                self.swing_tax[i],
+                self.swing_asset_cost[i]
+                 ) = results[i]
         else:
             for i in tqdm(range(n)):
                 self.performance[i], _ = self.chartsim.simulate_performance(**kwargs)
-                self.buy_and_hold_performance[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i] = self.chartsim.buy_and_hold(self.performance[i], **kwargs)
-                self.random_swing_performance[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
-                self.swing_performance[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
+                self.buy_and_hold_performance[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartsim.buy_and_hold(self.performance[i], **kwargs)
+                self.random_swing_performance[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
+                self.swing_performance[i], self.swing_transaction_cost[i], self.swing_tax[i], self.swing_asset_cost[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
 
         self.index_performance = self.performance[:, -1]
         self.buy_and_hold_profit = self.buy_and_hold_performance[:, -1]
@@ -700,16 +706,16 @@ class MonteCarloSimulation:
         self.random_swing_ttwror = np.zeros((n, self.chartimp.time))
         self.swing_ttwror = np.zeros((n, self.chartimp.time))
 
-        self.buy_and_hold_transaction_cost, self.buy_and_hold_tax = np.zeros(n), np.zeros(n)
-        self.random_swing_transaction_cost, self.random_swing_tax = np.zeros(n), np.zeros(n)
-        self.swing_transaction_cost, self.swing_tax = np.zeros(n), np.zeros(n)
+        self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
+        self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
+        self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
             num_cores = multiprocessing.cpu_count()
             results = Parallel(n_jobs=num_cores)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
 
-            for i in range(n):
-                (self.performance[i], 
+            for i in range(n): (
+                self.performance[i], 
                 self.buy_and_hold_performance[i], 
                 self.random_swing_performance[i], 
                 self.swing_performance[i], 
@@ -718,17 +724,21 @@ class MonteCarloSimulation:
                 self.swing_ttwror[i],
                 self.buy_and_hold_transaction_cost[i], 
                 self.buy_and_hold_tax[i], 
+                self.buy_and_hold_asset_cost[i],
                 self.random_swing_transaction_cost[i], 
                 self.random_swing_tax[i], 
+                self.random_swing_asset_cost[i],
                 self.swing_transaction_cost[i], 
-                self.swing_tax[i]) = results[i]
+                self.swing_tax[i],
+                self.swing_asset_cost[i]
+                ) = results[i]
         
         else:
             for i in tqdm(range(n)):
                 self.performance[i], _ = self.chartimp.update_selection(limit=slice(i*stepsize, self.chartimp.time + i*stepsize), normalize=True, **kwargs)
-                self.buy_and_hold_performance[i],  self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i] = self.chartimp.buy_and_hold(self.performance[i], **kwargs)
-                self.random_swing_performance[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i] = self.chartimp.random_swing_trade(self.performance[i], **kwargs)
-                self.swing_performance[i], self.swing_ttwror[i], self.swing_transaction_cost[i], self.swing_tax[i] = self.chartimp.swing_trade(self.performance[i], **kwargs)
+                self.buy_and_hold_performance[i],  self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartimp.buy_and_hold(self.performance[i], **kwargs)
+                self.random_swing_performance[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartimp.random_swing_trade(self.performance[i], **kwargs)
+                self.swing_performance[i], self.swing_ttwror[i], self.swing_transaction_cost[i], self.swing_tax[i], self.swing_asset_cost[i] = self.chartimp.swing_trade(self.performance[i], **kwargs)
 
         self.index_performance = self.performance[:, -1]
         self.buy_and_hold_profit = self.buy_and_hold_performance[:, -1]
@@ -802,6 +812,7 @@ class MonteCarloSimulation:
         ttwror, ttwror_std, ttwror_median = round(np.mean(self.buy_and_hold_ttwror), accuracy), round(np.std(self.buy_and_hold_ttwror), accuracy), round(np.median(self.buy_and_hold_ttwror), accuracy)
         taxes, taxes_std, taxes_median = round(np.mean(self.buy_and_hold_tax), accuracy), round(np.std(self.buy_and_hold_tax), accuracy), round(np.median(self.buy_and_hold_tax), accuracy)
         transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.buy_and_hold_transaction_cost), accuracy), round(np.std(self.buy_and_hold_transaction_cost), accuracy), round(np.median(self.buy_and_hold_transaction_cost), accuracy) 
+        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.buy_and_hold_asset_cost), accuracy), round(np.std(self.buy_and_hold_asset_cost), accuracy), round(np.median(self.buy_and_hold_asset_cost), accuracy)
         print(f"Buy and hold return:") 
         print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
         print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
@@ -810,6 +821,7 @@ class MonteCarloSimulation:
         print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
         print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
         print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
+        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
         print()
 
         overall_return, overall_std, overall_median = round(self.swing_profit.mean(), accuracy), round(self.swing_profit.std(), accuracy), round(np.median(self.swing_profit), accuracy)
@@ -820,6 +832,7 @@ class MonteCarloSimulation:
         ttwror, ttwror_std, ttwror_median = round(np.mean(self.swing_ttwror), accuracy), round(np.std(self.swing_ttwror), accuracy), round(np.median(self.swing_ttwror), accuracy)
         taxes, taxes_std, taxes_median = round(np.mean(self.swing_tax), accuracy), round(np.std(self.swing_tax), accuracy), round(np.median(self.swing_tax), accuracy)
         transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.swing_transaction_cost), accuracy), round(np.std(self.swing_transaction_cost), accuracy), round(np.median(self.swing_transaction_cost), accuracy)   
+        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.swing_asset_cost), accuracy), round(np.std(self.swing_asset_cost), accuracy), round(np.median(self.swing_asset_cost), accuracy)
         print(f"Swing trade return:")
         print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
         print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
@@ -828,6 +841,7 @@ class MonteCarloSimulation:
         print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
         print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
         print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
+        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
         print()
 
         overall_return, overall_std, overall_median = round(self.random_swing_profit.mean(), accuracy), round(self.random_swing_profit.std(), accuracy), round(np.median(self.random_swing_profit), accuracy)
@@ -838,6 +852,7 @@ class MonteCarloSimulation:
         ttwror, ttwror_std, ttwror_median = round(np.mean(self.random_swing_ttwror), accuracy), round(np.std(self.random_swing_ttwror), accuracy), round(np.median(self.random_swing_ttwror), accuracy)
         taxes, taxes_std, taxes_median = round(np.mean(self.random_swing_tax), accuracy), round(np.std(self.random_swing_tax), accuracy), round(np.median(self.random_swing_tax), accuracy)
         transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.random_swing_transaction_cost), accuracy), round(np.std(self.random_swing_transaction_cost), accuracy), round(np.median(self.random_swing_transaction_cost), accuracy)
+        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.random_swing_asset_cost), accuracy), round(np.std(self.random_swing_asset_cost), accuracy), round(np.median(self.random_swing_asset_cost), accuracy)
         print(f"Random swing trade return:")
         print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
         print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
@@ -846,6 +861,7 @@ class MonteCarloSimulation:
         print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
         print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
         print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
+        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
         print()
 
 
