@@ -422,7 +422,7 @@ class PerformanceAnalyzer(object):
         print()
 
         absoulte_performance, relative_performance = round(self.buy_and_hold_performance[-1], accuracy), round(self.buy_and_hold_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.buy_and_hold_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('buy_and_hold'), accuracy), round(self.buy_and_hold_performance[-1]/self.buy_and_hold_performance[0], accuracy)
+        yearly_return, internal_rate, ttwror = round((self.buy_and_hold_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('buy_and_hold'), accuracy), round(self.buy_and_hold_ttwror[-1], accuracy)
         taxes, transaction_cost = round(np.sum(self.buy_and_hold_tax), accuracy), round(np.sum(self.buy_and_hold_transaction_cost), accuracy)
         print(f"Buy and hold return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
@@ -431,7 +431,7 @@ class PerformanceAnalyzer(object):
         print()
 
         absoulte_performance, relative_performance = round(self.swing_performance[-1], accuracy), round(self.swing_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_performance[-1]/self.swing_performance[0], accuracy)
+        yearly_return, internal_rate, ttwror = round((self.swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_ttwror[-1], accuracy)
         taxes, transaction_cost = round(np.sum(self.swing_tax), accuracy), round(np.sum(self.swing_transaction_cost), accuracy)
         print(f"Swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
@@ -440,7 +440,7 @@ class PerformanceAnalyzer(object):
         print()
 
         absoulte_performance, relative_performance = round(self.random_swing_performance[-1], accuracy), round(self.random_swing_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.random_swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_performance[-1]/self.random_swing_performance[0], accuracy)
+        yearly_return, internal_rate, ttwror = round((self.random_swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_ttwror[-1], accuracy)
         taxes, transaction_cost = round(np.sum(self.random_swing_tax), accuracy), round(np.sum(self.random_swing_transaction_cost), accuracy)
         print(f"Random swing trade return:")
         print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
@@ -531,43 +531,58 @@ class ChartSimulation(PerformanceAnalyzer):
 
 class ChartImport(PerformanceAnalyzer):
 
-    def __init__(self, path="data/MSCI_World.csv", *args, **kwargs):
+    def __init__(self, 
+                 path="data/msci_complete.csv", 
+                 date_col="Date",
+                 val_col="Close",
+                 *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self.import_data_df = None
 
         self.path = path
+        self.date_col = date_col
+        self.val_col = val_col
 
-    def load_data(self, path=None, limit=None, normalize=True, *args, **kwargs):
-
+    def load_data(self, path=None, date_col=None, val_col=None, limit=None, normalize=True, *args, **kwargs):
+    
+        if path is None:
+            path = self.path
+        if date_col is None:
+            date_col = self.date_col
+        if val_col is None:
+            val_col = self.val_col
         if limit is None:
             limit = slice(self.time)
         
-        if path is None:
-            path = self.path
 
         self.import_data_df = pd.read_csv(path)
-        self.import_data_df = self.import_data_df
-        self.import_data_df['Date'] = pd.to_datetime(self.import_data_df['Date'])
+        self.import_data_df[date_col] = pd.to_datetime(self.import_data_df[date_col])
+        self.import_data_df.sort_values(by=date_col, ascending=True, inplace=True) 
 
         if normalize:
-            self.import_data_df['Value'] = self.import_data_df['Value'] * self.initial_investment / self.import_data_df['Value'].iloc[0]
+            self.import_data_df[val_col] = self.import_data_df[val_col] * self.initial_investment / self.import_data_df[val_col].iloc[0]
 
-        self.performance = self.import_data_df['Value'].to_numpy()[limit]
-        self.dates = self.import_data_df['Date'].to_numpy()[limit]
+        self.performance = self.import_data_df[val_col].to_numpy()[limit]
+        self.dates = self.import_data_df[date_col].to_numpy()[limit]
 
         if normalize:
             self.performance = self.performance * self.initial_investment / self.performance[0]
 
         return  self.performance, self.dates
     
-    def update_selection(self, limit=None, normalize=True, *args, **kwargs):
+    def update_selection(self, date_col=None, val_col=None, limit=None, normalize=True, *args, **kwargs):
 
+        if date_col is None:
+            date_col = self.date_col
+        if val_col is None:
+            val_col = self.val_col
         if limit is None:
             limit = slice(self.time)
+        
 
-        self.performance = self.import_data_df['Value'].to_numpy()[limit]
-        self.dates = self.import_data_df['Date'].to_numpy()[limit]
+        self.performance = self.import_data_df[val_col].to_numpy()[limit]
+        self.dates = self.import_data_df[date_col].to_numpy()[limit]
 
         if normalize:
             self.performance = self.performance * self.initial_investment / self.performance[0]
