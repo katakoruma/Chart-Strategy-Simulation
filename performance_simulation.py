@@ -6,6 +6,8 @@ import datetime
 from tqdm import tqdm
 from joblib import Parallel, delayed
 import multiprocessing
+import pandas as pd
+import pprint
 
 class PerformanceAnalyzer(object):
 
@@ -422,39 +424,57 @@ class PerformanceAnalyzer(object):
         print("Total investment: ", f"{self.total_investment:,}")
         print()
 
-        absoulte_performance, relative_performance = round(self.performance[-1], accuracy), round(self.performance[-1]/self.initial_investment, accuracy)
-        yearly_return = round((self.performance[-1]/self.initial_investment)**(self.length_of_year/self.time), accuracy)
-        print(f"Index performance:") 
-        print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
-        print(f"    Yearly performance: {yearly_return:,}")
-        print()
+        strategies = ['Index Performance', 'Buy and Hold', 'Swing Trade', 'Random Swing Trade']
+        metrics = ['Absolute Return', 'Relative Performance', 'TTWROR', 'Yearly Performance', 'Internal Rate of Return', 'Taxes', 'Transaction Cost', 'Asset Cost']
 
-        absoulte_performance, relative_performance = round(self.buy_and_hold_performance[-1], accuracy), round(self.buy_and_hold_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.buy_and_hold_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('buy_and_hold'), accuracy), round(self.buy_and_hold_ttwror[-1], accuracy)
-        taxes, transaction_cost, asset_cost = round(self.buy_and_hold_tax, accuracy), round(self.buy_and_hold_transaction_cost, accuracy), round(self.buy_and_hold_asset_cost, accuracy)
-        print(f"Buy and hold return:")
-        print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
-        print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
-        print()
+        data = {
+            'Index Performance': [
+            self.performance[-1],
+            self.performance[-1] / self.initial_investment,
+            self.performance[-1] / self.initial_investment,
+            (self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time),
+            (self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time),
+            None,  # Taxes not applicable
+            None,  # Transaction Cost not applicable
+            None   # Asset Cost not applicable
+            ],
+            'Buy and Hold': [
+            self.buy_and_hold_performance[-1],
+            self.buy_and_hold_performance[-1] / self.total_investment,
+            self.buy_and_hold_ttwror[-1],
+            (self.buy_and_hold_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
+            self.internal_rate_of_return('buy_and_hold'),
+            self.buy_and_hold_tax,
+            self.buy_and_hold_transaction_cost,
+            self.buy_and_hold_asset_cost
+            ],
+            'Swing Trade': [
+            self.swing_performance[-1],
+            self.swing_performance[-1] / self.total_investment,
+            self.swing_ttwror[-1],
+            (self.swing_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
+            self.internal_rate_of_return('swing_trade'),
+            self.swing_tax,
+            self.swing_transaction_cost,
+            self.swing_asset_cost
+            ],
+            'Random Swing Trade': [
+            self.random_swing_performance[-1],
+            self.random_swing_performance[-1] / self.total_investment,
+            self.random_swing_ttwror[-1],
+            (self.random_swing_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
+            self.internal_rate_of_return('random_swing_trade'),
+            self.random_swing_tax,
+            self.random_swing_transaction_cost,
+            self.random_swing_asset_cost
+            ]
+        }
 
-        absoulte_performance, relative_performance = round(self.swing_performance[-1], accuracy), round(self.swing_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('swing_trade'), accuracy), round(self.swing_ttwror[-1], accuracy)
-        taxes, transaction_cost, asset_cost = round(self.swing_tax, accuracy), round(self.swing_transaction_cost, accuracy), round(self.swing_asset_cost, accuracy)
-        print(f"Swing trade return:")
-        print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
-        print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
-        print()
+        self.results_df = pd.DataFrame(data, index=metrics)
 
-        absoulte_performance, relative_performance = round(self.random_swing_performance[-1], accuracy), round(self.random_swing_performance[-1]/self.total_investment, accuracy)
-        yearly_return, internal_rate, ttwror = round((self.random_swing_performance[-1]/self.total_investment)**(self.length_of_year/self.time), accuracy), round(self.internal_rate_of_return('random_swing_trade'), accuracy), round(self.random_swing_ttwror[-1], accuracy)
-        taxes, transaction_cost, asset_cost = round(self.random_swing_tax, accuracy), round(self.random_swing_transaction_cost, accuracy), round(self.random_swing_asset_cost, accuracy)
-        print(f"Random swing trade return:")
-        print(f"    Absolute: {absoulte_performance:,}, Relative: {relative_performance:,}")
-        print(f"    Yearly performance: {yearly_return:,}, Internal rate of return: {internal_rate:,}, TTWROR: {ttwror:,}")
-        print(f"    Taxes: {taxes:,}, Transaction cost: {transaction_cost:,}, Asset cost: {asset_cost:,}")
-        print()
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
+            print(self.results_df.round(accuracy))
+    
 
 
     def print_parameters(self):
@@ -798,77 +818,72 @@ class MonteCarloSimulation:
             # self.chartimp.print_parameters()
             # print("\n")
 
-        print("Initial investment: ", f"{initial_investment:,}, Total investment: ", f"{total_investment:,}")
+        print("Initial investment: ", f"{initial_investment:,}")
+        print("Total investment: ", f"{total_investment:,}")
         print()
 
-        overall_return, overall_std, overall_median = round(self.index_performance.mean(), accuracy), round(self.index_performance.std(), accuracy), round(np.median(self.index_performance), accuracy)
-        relative_performance, relative_std, relative_median = round(np.mean(self.index_performance/initial_investment), accuracy), round(np.std(self.index_performance/initial_investment), accuracy), round(np.median(self.index_performance/initial_investment), accuracy)
-        yearly_return, yearly_std, yearly_median = round(np.mean((self.index_performance/initial_investment)**(length_of_year/time)), accuracy), round(np.std((self.index_performance/initial_investment)**(length_of_year/time)), accuracy), round(np.median((self.index_performance/initial_investment)**(length_of_year/time)), accuracy)
-        print(f"Index performance:")
-        print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
-        print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
-        print(f"  Yearly performance: {yearly_return:,} +/- {yearly_std:,} (Median: {yearly_median:,})")
-        print()
+        metrics = ['Overall Return', 'Relative Performance', 'TTWROR', 'Yearly Performance', 'Internal Rate of Return', 'Taxes', 'Transaction Cost', 'Asset Cost']
+        strategies = ['Index Performance', 'Buy and Hold', 'Swing Trade', 'Random Swing Trade']
 
-        overall_return, overall_std, overall_median = round(self.buy_and_hold_profit.mean(), accuracy), round(self.buy_and_hold_profit.std(), accuracy), round(np.median(self.buy_and_hold_profit), accuracy)
-        relative_performance, relative_std, relative_median = round(np.mean(self.buy_and_hold_profit/total_investment), accuracy), round(np.std(self.buy_and_hold_profit/total_investment), accuracy), round(np.median(self.buy_and_hold_profit/total_investment), accuracy)
-        yearly_return, yearly_std, yearly_median = round(np.mean((self.buy_and_hold_profit/total_investment)**(length_of_year/time)), accuracy), round(np.std((self.buy_and_hold_profit/total_investment)**(length_of_year/time)), accuracy), round(np.median((self.buy_and_hold_profit/total_investment)**(length_of_year/time)), accuracy)
+        data = {}
+
+        data['Index Performance'] = {
+            'Overall Return': [self.index_performance.mean(), self.index_performance.std(), np.median(self.index_performance)],
+            'Relative Performance': [np.mean(self.index_performance / initial_investment), np.std(self.index_performance / initial_investment), np.median(self.index_performance / initial_investment)],
+            'TTWROR': [np.mean(self.index_performance / initial_investment), np.std(self.index_performance / initial_investment), np.median(self.index_performance / initial_investment)],
+            'Yearly Performance': [np.mean((self.index_performance / initial_investment) ** (length_of_year / time)), np.std((self.index_performance / initial_investment) ** (length_of_year / time)), np.median((self.index_performance / initial_investment) ** (length_of_year / time))],
+            'Internal Rate of Return': [np.mean((self.index_performance / initial_investment) ** (length_of_year / time)), np.std((self.index_performance / initial_investment) ** (length_of_year / time)), np.median((self.index_performance / initial_investment) ** (length_of_year / time))],
+            'Taxes': [np.nan, np.nan, np.nan],
+            'Transaction Cost': [np.nan, np.nan, np.nan],
+            'Asset Cost': [np.nan, np.nan, np.nan]
+        }
+
         internal_rates = [internal_rate_func(self.buy_and_hold_profit[i]) for i in range(len(self.buy_and_hold_profit))]
-        internal_rate, internal_rate_std, internal_rate_median = round(np.mean(internal_rates), accuracy), round(np.std(internal_rates), accuracy), round(np.median(internal_rates), accuracy)
-        ttwror, ttwror_std, ttwror_median = round(np.mean(self.buy_and_hold_ttwror), accuracy), round(np.std(self.buy_and_hold_ttwror), accuracy), round(np.median(self.buy_and_hold_ttwror), accuracy)
-        taxes, taxes_std, taxes_median = round(np.mean(self.buy_and_hold_tax), accuracy), round(np.std(self.buy_and_hold_tax), accuracy), round(np.median(self.buy_and_hold_tax), accuracy)
-        transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.buy_and_hold_transaction_cost), accuracy), round(np.std(self.buy_and_hold_transaction_cost), accuracy), round(np.median(self.buy_and_hold_transaction_cost), accuracy) 
-        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.buy_and_hold_asset_cost), accuracy), round(np.std(self.buy_and_hold_asset_cost), accuracy), round(np.median(self.buy_and_hold_asset_cost), accuracy)
-        print(f"Buy and hold return:") 
-        print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
-        print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
-        print(f"  Yearly performance: {yearly_return:,} +/- {yearly_std:,} (Median: {yearly_median:,})")
-        print(f"  Internal rate of return: {internal_rate:,} +/- {internal_rate_std:,} (Median: {internal_rate_median:,})")
-        print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
-        print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
-        print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
-        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
-        print()
+        data['Buy and Hold'] = {
+            'Overall Return': [self.buy_and_hold_profit.mean(), self.buy_and_hold_profit.std(), np.median(self.buy_and_hold_profit)],
+            'Relative Performance': [np.mean(self.buy_and_hold_profit / total_investment), np.std(self.buy_and_hold_profit / total_investment), np.median(self.buy_and_hold_profit / total_investment)],
+            'TTWROR': [np.mean(self.buy_and_hold_ttwror), np.std(self.buy_and_hold_ttwror), np.median(self.buy_and_hold_ttwror)],
+            'Yearly Performance': [np.mean((self.buy_and_hold_profit / total_investment) ** (length_of_year / time)), np.std((self.buy_and_hold_profit / total_investment) ** (length_of_year / time)), np.median((self.buy_and_hold_profit / total_investment) ** (length_of_year / time))],
+            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
+            'Taxes': [np.mean(self.buy_and_hold_tax), np.std(self.buy_and_hold_tax), np.median(self.buy_and_hold_tax)],
+            'Transaction Cost': [np.mean(self.buy_and_hold_transaction_cost), np.std(self.buy_and_hold_transaction_cost), np.median(self.buy_and_hold_transaction_cost)],
+            'Asset Cost': [np.mean(self.buy_and_hold_asset_cost), np.std(self.buy_and_hold_asset_cost), np.median(self.buy_and_hold_asset_cost)]
+        }
 
-        overall_return, overall_std, overall_median = round(self.swing_profit.mean(), accuracy), round(self.swing_profit.std(), accuracy), round(np.median(self.swing_profit), accuracy)
-        relative_performance, relative_std, relative_median = round(np.mean(self.swing_profit/total_investment), accuracy), round(np.std(self.swing_profit/total_investment), accuracy), round(np.median(self.swing_profit/total_investment), accuracy)
-        yearly_return, yearly_std, yearly_median = round(np.mean((self.swing_profit/total_investment)**(length_of_year/time)), accuracy), round(np.std((self.swing_profit/total_investment)**(length_of_year/time)), accuracy), round(np.median((self.swing_profit/total_investment)**(length_of_year/time)), accuracy)
         internal_rates = [internal_rate_func(self.swing_profit[i]) for i in range(len(self.swing_profit))]
-        internal_rate, internal_rate_std, internal_rate_median = round(np.mean(internal_rates), accuracy), round(np.std(internal_rates), accuracy), round(np.median(internal_rates), accuracy)
-        ttwror, ttwror_std, ttwror_median = round(np.mean(self.swing_ttwror), accuracy), round(np.std(self.swing_ttwror), accuracy), round(np.median(self.swing_ttwror), accuracy)
-        taxes, taxes_std, taxes_median = round(np.mean(self.swing_tax), accuracy), round(np.std(self.swing_tax), accuracy), round(np.median(self.swing_tax), accuracy)
-        transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.swing_transaction_cost), accuracy), round(np.std(self.swing_transaction_cost), accuracy), round(np.median(self.swing_transaction_cost), accuracy)   
-        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.swing_asset_cost), accuracy), round(np.std(self.swing_asset_cost), accuracy), round(np.median(self.swing_asset_cost), accuracy)
-        print(f"Swing trade return:")
-        print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
-        print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
-        print(f"  Yearly performance: {yearly_return:,} +/- {yearly_std:,} (Median: {yearly_median:,})")
-        print(f"  Internal rate of return: {internal_rate:,} +/- {internal_rate_std:,} (Median: {internal_rate_median:,})")
-        print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
-        print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
-        print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
-        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
-        print()
+        data['Swing Trade'] = {
+            'Overall Return': [self.swing_profit.mean(), self.swing_profit.std(), np.median(self.swing_profit)],
+            'Relative Performance': [np.mean(self.swing_profit / total_investment), np.std(self.swing_profit / total_investment), np.median(self.swing_profit / total_investment)],
+            'TTWROR': [np.mean(self.swing_ttwror), np.std(self.swing_ttwror), np.median(self.swing_ttwror)],
+            'Yearly Performance': [np.mean((self.swing_profit / total_investment) ** (length_of_year / time)), np.std((self.swing_profit / total_investment) ** (length_of_year / time)), np.median((self.swing_profit / total_investment) ** (length_of_year / time))],
+            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
+            'Taxes': [np.mean(self.swing_tax), np.std(self.swing_tax), np.median(self.swing_tax)],
+            'Transaction Cost': [np.mean(self.swing_transaction_cost), np.std(self.swing_transaction_cost), np.median(self.swing_transaction_cost)],
+            'Asset Cost': [np.mean(self.swing_asset_cost), np.std(self.swing_asset_cost), np.median(self.swing_asset_cost)]
+        }
 
-        overall_return, overall_std, overall_median = round(self.random_swing_profit.mean(), accuracy), round(self.random_swing_profit.std(), accuracy), round(np.median(self.random_swing_profit), accuracy)
-        yearly_return, yearly_std, yearly_median = round(np.mean((self.random_swing_profit/total_investment)**(length_of_year/time)), accuracy), round(np.std((self.random_swing_profit/total_investment)**(length_of_year/time)), accuracy), round(np.median((self.random_swing_profit/total_investment)**(length_of_year/time)), accuracy)
-        relative_performance, relative_std, relative_median = round(np.mean(self.random_swing_profit/total_investment), accuracy), round(np.std(self.random_swing_profit/total_investment), accuracy), round(np.median(self.random_swing_profit/total_investment), accuracy)
         internal_rates = [internal_rate_func(self.random_swing_profit[i]) for i in range(len(self.random_swing_profit))]
-        internal_rate, internal_rate_std, internal_rate_median = round(np.mean(internal_rates), accuracy), round(np.std(internal_rates), accuracy), round(np.median(internal_rates), accuracy)
-        ttwror, ttwror_std, ttwror_median = round(np.mean(self.random_swing_ttwror), accuracy), round(np.std(self.random_swing_ttwror), accuracy), round(np.median(self.random_swing_ttwror), accuracy)
-        taxes, taxes_std, taxes_median = round(np.mean(self.random_swing_tax), accuracy), round(np.std(self.random_swing_tax), accuracy), round(np.median(self.random_swing_tax), accuracy)
-        transaction_cost, transaction_cost_std, transaction_cost_median = round(np.mean(self.random_swing_transaction_cost), accuracy), round(np.std(self.random_swing_transaction_cost), accuracy), round(np.median(self.random_swing_transaction_cost), accuracy)
-        asset_cost, asset_cost_std, asset_cost_median = round(np.mean(self.random_swing_asset_cost), accuracy), round(np.std(self.random_swing_asset_cost), accuracy), round(np.median(self.random_swing_asset_cost), accuracy)
-        print(f"Random swing trade return:")
-        print(f"  Overall return: {overall_return:,} +/- {overall_std:,} (Median: {overall_median:,})")
-        print(f"  Relative performance: {relative_performance:,} +/- {relative_std:,} (Median: {relative_median:,})")
-        print(f"  Yearly performance: {yearly_return:,} +/- {yearly_std:,} (Median: {yearly_median:,})")
-        print(f"  Internal rate of return: {internal_rate:,} +/- {internal_rate_std:,} (Median: {internal_rate_median:,})")
-        print(f"  TTWROR: {ttwror:,} +/- {ttwror_std:,} (Median: {ttwror_median:,})")
-        print(f"  Taxes: {taxes:,} +/- {taxes_std:,} (Median: {taxes_median:,})")
-        print(f"  Transaction cost: {transaction_cost:,} +/- {transaction_cost_std:,} (Median: {transaction_cost_median:,})")
-        print(f"  Asset cost: {asset_cost:,} +/- {asset_cost_std:,} (Median: {asset_cost_median:,})")
-        print()
+        data['Random Swing Trade'] = {
+            'Overall Return': [self.random_swing_profit.mean(), self.random_swing_profit.std(), np.median(self.random_swing_profit)],
+            'Relative Performance': [np.mean(self.random_swing_profit / total_investment), np.std(self.random_swing_profit / total_investment), np.median(self.random_swing_profit / total_investment)],
+            'TTWROR': [np.mean(self.random_swing_ttwror), np.std(self.random_swing_ttwror), np.median(self.random_swing_ttwror)],
+            'Yearly Performance': [np.mean((self.random_swing_profit / total_investment) ** (length_of_year / time)), np.std((self.random_swing_profit / total_investment) ** (length_of_year / time)), np.median((self.random_swing_profit / total_investment) ** (length_of_year / time))],
+            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
+            'Taxes': [np.mean(self.random_swing_tax), np.std(self.random_swing_tax), np.median(self.random_swing_tax)],
+            'Transaction Cost': [np.mean(self.random_swing_transaction_cost), np.std(self.random_swing_transaction_cost), np.median(self.random_swing_transaction_cost)],
+            'Asset Cost': [np.mean(self.random_swing_asset_cost), np.std(self.random_swing_asset_cost), np.median(self.random_swing_asset_cost)]
+        }
+
+        index = pd.MultiIndex.from_product([strategies, ['Mean', 'Std', 'Median']], names=['Strategy', 'Metric'])
+        df_data = []
+        for metric in metrics:
+            for strategy in strategies:
+                df_data.extend(data[strategy][metric])
+        df_data = np.array(df_data).reshape(8,12).T
+        self.results_mc_df = pd.DataFrame(df_data, index=index, columns=metrics).T
+
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
+            print(self.results_mc_df.round(accuracy))
 
 
 if __name__ == "__main__":
