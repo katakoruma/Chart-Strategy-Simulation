@@ -19,7 +19,7 @@ class PerformanceAnalyzer(object):
                  max_trades=20,  
                  hold_time=[14,3,7,0], 
                  time_after_reversel=0, 
-                 trade_cost=[0,0], 
+                 trade_cost=0, 
                  spread=0, 
                  asset_cost=0,
                  tax_rate=0,
@@ -257,6 +257,11 @@ class PerformanceAnalyzer(object):
     
     def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, asset_cost, tax_rate, tax_allowance, consider_loss_for_taxes=True):
 
+        if type(trade_cost) == float or type(trade_cost) == int:
+            trade_cost = [trade_cost, trade_cost]
+        if type(spread) == float or type(spread) == int:
+            spread = [spread, spread]
+
         swing_performance = np.array([self.initial_investment])
         value_at_last_trade = [self.initial_investment, self.initial_investment]
         ttwror_factor = 1
@@ -289,20 +294,21 @@ class PerformanceAnalyzer(object):
             if swing_performance[-1] <= 0: # If we are broke
                 swing_performance[-1] = 0
                 swing_performance = np.append(swing_performance, np.zeros(self.time -1 -i))
+                ttwror = np.append(ttwror, np.zeros(self.time -1 -i))
                 break
             elif np.sum(trade_dates <= i) % 2 == 1: # If we are in a trade or entering a trade
                 if np.any(trade_dates == i): # If we are entering a trade
-                    swing_performance = np.append(swing_performance, (swing_performance[-1]-trade_cost[0]) * (1-spread))
+                    swing_performance = np.append(swing_performance, (swing_performance[-1]-trade_cost[0]) * (1-spread[0]))
                     value_at_last_trade = [swing_performance[-1], swing_performance[-2]]
                     ttwror_factor = ttwror[-1]
-                    payed_transaction_cost += trade_cost[0] + (swing_performance[-2]-trade_cost[0]) * spread
+                    payed_transaction_cost += trade_cost[0] + (swing_performance[-2]-trade_cost[0]) * spread[0]
                 else: # If we are in a trade
                     swing_performance = np.append(swing_performance, swing_performance[-1])
                 if saving_plan != 0 and i % saving_plan_period == 0 and i != 0: # If we have a saving plan
-                    value_at_last_trade = [value_at_last_trade[0] + (saving_plan-trade_cost[1]) * (1-spread), swing_performance[-1] + saving_plan]
-                    swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread) 
+                    value_at_last_trade = [value_at_last_trade[0] + (saving_plan-trade_cost[1]) * (1-spread[1]), swing_performance[-1] + saving_plan]
+                    swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread[1]) 
                     ttwror_factor = ttwror[-1]
-                    payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread
+                    payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread[1]
                 payed_asset_cost += swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - (1 - asset_cost)**(1/self.length_of_year) )
                 swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - asset_cost)**(1/self.length_of_year)  # Update performance with the data gradient
             else:   # If we are not in a trade or exiting a trade
@@ -668,9 +674,9 @@ class MonteCarloSimulation:
         else:
             for i in tqdm(range(n)):
                 self.performance[i], _ = self.chartsim.simulate_performance(**kwargs)
-                self.buy_and_hold_performance[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartsim.buy_and_hold(self.performance[i], **kwargs)
-                self.random_swing_performance[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
-                self.swing_performance[i], self.swing_transaction_cost[i], self.swing_tax[i], self.swing_asset_cost[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
+                self.buy_and_hold_performance[i], self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartsim.buy_and_hold(self.performance[i], **kwargs)
+                self.random_swing_performance[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartsim.random_swing_trade(self.performance[i], **kwargs)
+                self.swing_performance[i],  self.swing_ttwror[i], self.swing_transaction_cost[i], self.swing_tax[i], self.swing_asset_cost[i] = self.chartsim.swing_trade(self.performance[i], **kwargs)
 
         self.index_performance = self.performance[:, -1]
         self.buy_and_hold_profit = self.buy_and_hold_performance[:, -1]
