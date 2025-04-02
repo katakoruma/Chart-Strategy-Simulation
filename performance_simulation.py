@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import datetime
 from tqdm import tqdm
 from joblib import Parallel, delayed
+from numba import njit
 import multiprocessing
 import pandas as pd
 import pprint
@@ -78,7 +79,7 @@ class PerformanceAnalyzer(object):
             self.__spread = spread
         else:
             raise ValueError('Spread must be either a float, an integer, a list or an array')
-        assert np.all( self.__spread  >= 0), 'Spread must be greater than or equal to 0'
+        assert np.all(self.__spread  >= 0), 'Spread must be greater than or equal to 0'
 
 
     @property
@@ -185,7 +186,28 @@ class PerformanceAnalyzer(object):
                 i += max(1,round(np.random.normal(hold_time[1], hold_time[3])))
 
 
-        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        if isinstance(saving_plan, dict):
+            saving_plan_keys = np.array(list(saving_plan.keys()))  
+            saving_plan_values = np.array(list(saving_plan.values())) 
+        else:
+            saving_plan_values = [saving_plan]
+            saving_plan_keys = [0]
+
+        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = compute_performance(
+                                                                                                                                                                                    initial_investment=self.initial_investment, 
+                                                                                                                                                                                    length_of_year=self.length_of_year, 
+                                                                                                                                                                                    time=self.time, 
+                                                                                                                                                                                    data=data, 
+                                                                                                                                                                                    trade_dates=trade_dates, 
+                                                                                                                                                                                    trade_cost=trade_cost, 
+                                                                                                                                                                                    spread=spread, 
+                                                                                                                                                                                    saving_plan_arr=saving_plan_values,
+                                                                                                                                                                                    saving_plan_keys=saving_plan_keys, 
+                                                                                                                                                                                    saving_plan_period=saving_plan_period, 
+                                                                                                                                                                                    asset_cost=asset_cost, 
+                                                                                                                                                                                    tax_rate=tax_rate, 
+                                                                                                                                                                                    tax_allowance=tax_allowance
+                                                                                                                                                                                    )
         
         # print('Random Swing Trade:', trade_dates)
         return self.random_swing_performance,  self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost
@@ -232,7 +254,7 @@ class PerformanceAnalyzer(object):
         if data is None:
             data = self.performance
 
-        data_smooth = self._smooth(data, smooth_period)
+        data_smooth = smooth(data, smooth_period)
         data_trend = np.gradient(data_smooth)
 
         if trade_dates is None:
@@ -253,8 +275,30 @@ class PerformanceAnalyzer(object):
                         i += 1
                 else:
                     i += 1
+
+
+        if isinstance(saving_plan, dict):
+            saving_plan_keys = np.array(list(saving_plan.keys()))  
+            saving_plan_values = np.array(list(saving_plan.values())) 
+        else:
+            saving_plan_values = [saving_plan]
+            saving_plan_keys = [0]
             
-        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost = compute_performance(
+                                                                                                                                                 initial_investment=self.initial_investment, 
+                                                                                                                                                 length_of_year=self.length_of_year, 
+                                                                                                                                                 time=self.time, 
+                                                                                                                                                 data=data, 
+                                                                                                                                                 trade_dates=trade_dates, 
+                                                                                                                                                 trade_cost=trade_cost, 
+                                                                                                                                                 spread=spread, 
+                                                                                                                                                 saving_plan_arr=saving_plan_values,
+                                                                                                                                                 saving_plan_keys=saving_plan_keys, 
+                                                                                                                                                 saving_plan_period=saving_plan_period, 
+                                                                                                                                                 asset_cost=asset_cost, 
+                                                                                                                                                 tax_rate=tax_rate, 
+                                                                                                                                                 tax_allowance=tax_allowance
+                                                                                                                                                 )
 
         # print('Swing Trade:', trade_dates)
         return self.swing_performance, self.swing_ttwror, self.swing_transaction_cost, self.swing_tax, self.swing_asset_cost
@@ -289,98 +333,32 @@ class PerformanceAnalyzer(object):
             
         trade_dates=np.array([0, self.time-1])
         #trade_dates = np.sort([-1, self.time])
+
+        if isinstance(saving_plan, dict):
+            saving_plan_keys = np.array(list(saving_plan.keys()))  
+            saving_plan_values = np.array(list(saving_plan.values())) 
+        else:
+            saving_plan_values = [saving_plan]
+            saving_plan_keys = [0]
             
-        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = self._compute_performance(data, trade_dates=trade_dates, trade_cost=trade_cost, spread=spread, saving_plan=saving_plan, saving_plan_period=saving_plan_period, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance)
+        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = compute_performance(
+                                                                                                                                                                                    initial_investment=self.initial_investment, 
+                                                                                                                                                                                    length_of_year=self.length_of_year, 
+                                                                                                                                                                                    time=self.time, 
+                                                                                                                                                                                    data=data, 
+                                                                                                                                                                                    trade_dates=trade_dates, 
+                                                                                                                                                                                    trade_cost=trade_cost, 
+                                                                                                                                                                                    spread=spread, 
+                                                                                                                                                                                    saving_plan_arr=saving_plan_values, 
+                                                                                                                                                                                    saving_plan_keys=saving_plan_keys,
+                                                                                                                                                                                    saving_plan_period=saving_plan_period, 
+                                                                                                                                                                                    asset_cost=asset_cost, 
+                                                                                                                                                                                    tax_rate=tax_rate, 
+                                                                                                                                                                                    tax_allowance=tax_allowance
+                                                                                                                                                                                    )
 
         return self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost
-    
-    def _compute_performance(self, data, trade_dates, trade_cost, spread, saving_plan, saving_plan_period, asset_cost, tax_rate, tax_allowance, consider_loss_for_taxes=True):
 
-        if type(trade_cost) == float or type(trade_cost) == int:
-            trade_cost = [trade_cost, trade_cost]
-        if type(spread) == float or type(spread) == int:
-            spread = [spread, spread]
-
-        swing_performance = np.array([self.initial_investment])
-        value_at_last_trade = [self.initial_investment, self.initial_investment]
-        ttwror_factor = 1
-        ttwror = np.array([1])
-
-        #data_gradient = np.gradient(data)
-        data_gradient = data[1:] - data[:-1]
-
-        trade_dates = np.sort(trade_dates)
-        payed_tax = 0
-        payed_transaction_cost = 0
-        payed_asset_cost = 0
-        unused_tax_allowance = tax_allowance
-
-        if type(saving_plan) == dict:
-            saving_plan_dict = saving_plan
-            saving_plan = saving_plan_dict[1]
-        else:
-            saving_plan_dict = None
-
-        for i in range(self.time-1):
-
-            if saving_plan_dict is not None: 
-                if i/saving_plan_period in saving_plan_dict.keys(): # If we have a variable saving plan
-                    saving_plan = saving_plan_dict[i/saving_plan_period]
-
-            if i % self.length_of_year == 0: # Reset tax allowance after a year
-                unused_tax_allowance = tax_allowance
-
-            if swing_performance[-1] <= 0: # If we are broke
-                swing_performance[-1] = 0
-                swing_performance = np.append(swing_performance, np.zeros(self.time -1 -i))
-                ttwror = np.append(ttwror, np.zeros(self.time -1 -i))
-                break
-            elif np.sum(trade_dates <= i) % 2 == 1: # If we are in a trade or entering a trade
-                if np.any(trade_dates == i): # If we are entering a trade
-                    swing_performance = np.append(swing_performance, (swing_performance[-1]-trade_cost[0]) * (1-spread[0]))
-                    value_at_last_trade = [swing_performance[-1], swing_performance[-2]]
-                    ttwror_factor = ttwror[-1]
-                    payed_transaction_cost += trade_cost[0] + (swing_performance[-2]-trade_cost[0]) * spread[0]
-                else: # If we are in a trade
-                    swing_performance = np.append(swing_performance, swing_performance[-1])
-                if saving_plan != 0 and i % saving_plan_period == 0 and i != 0: # If we have a saving plan
-                    value_at_last_trade = [value_at_last_trade[0] + (saving_plan-trade_cost[1]) * (1-spread[1]), swing_performance[-1] + saving_plan]
-                    swing_performance[-1] = swing_performance[-1] + (saving_plan-trade_cost[1]) * (1-spread[1]) 
-                    ttwror_factor = ttwror[-1]
-                    payed_transaction_cost += trade_cost[1] + (saving_plan-trade_cost[1]) * spread[1]
-                payed_asset_cost += swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - (1 - asset_cost)**(1/self.length_of_year) )
-                swing_performance[-1] = swing_performance[-1] * (1 + data_gradient[i]/data[i]) * (1 - asset_cost)**(1/self.length_of_year)  # Update performance with the data gradient
-            else:   # If we are not in a trade or exiting a trade
-                if np.any(trade_dates == i): # If we are exiting a trade
-                    swing_performance = np.append(swing_performance, swing_performance[-1] - trade_cost[0])
-                    payed_transaction_cost += trade_cost[0]
-                    if tax_rate != 0 and (swing_performance[-1] > value_at_last_trade[0] or consider_loss_for_taxes): # If we have to pay taxes and we made a profit or if we made a loss and the loss is offset against the tax allowance
-                        taxable_profit = swing_performance[-1] - value_at_last_trade[0]
-                        if taxable_profit > unused_tax_allowance: # If thhe taxable profit exceeds the tax allowance
-                            taxable_profit -= unused_tax_allowance
-                            unused_tax_allowance = 0
-                            tax = tax_rate * taxable_profit
-                            swing_performance[-1] = swing_performance[-1] - tax  
-                            payed_tax += tax       
-                        else: # If the taxable profit is smaller than the tax allowance or the loss is offset against the tax allowance if a loss is considered for taxes
-                            unused_tax_allowance -= taxable_profit
-                
-                else: # If we are not in a trade
-                    swing_performance = np.append(swing_performance, swing_performance[-1])
-                if saving_plan != 0 and i % saving_plan_period == 0 and i != 0:
-                    value_at_last_trade[1] = swing_performance[-1] + saving_plan
-                    swing_performance[-1] = swing_performance[-1] + saving_plan
-                    ttwror_factor = ttwror[-1]
-
-            ttwror = np.append(ttwror, swing_performance[-1] / value_at_last_trade[1] * ttwror_factor)
-
-        return swing_performance, ttwror, payed_transaction_cost, payed_tax, payed_asset_cost
-
-
-    def _smooth(self, y, box_pts):
-        box = np.ones(box_pts)/box_pts
-        y_smooth = np.convolve(y, box, mode='same')
-        return y_smooth
 
     def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, *args, **kwargs):
         
@@ -532,6 +510,98 @@ class PerformanceAnalyzer(object):
         print("\n")
 
 
+@njit(parallel=False)
+def compute_performance(
+    initial_investment, 
+    length_of_year, 
+    time, 
+    data, 
+    trade_dates, 
+    trade_cost, 
+    spread, 
+    saving_plan_arr,
+    saving_plan_keys,
+    saving_plan_period, 
+    asset_cost, 
+    tax_rate, 
+    tax_allowance, 
+    consider_loss_for_taxes=True
+):
+
+    swing_performance = np.zeros(time, dtype=np.float64)
+    swing_performance[0] = initial_investment
+    ttwror = np.zeros(time, dtype=np.float64)
+    ttwror[0] = 1.0
+    ttwror_factor = 1.0
+
+    data_gradient = data[1:] - data[:-1]
+    trade_dates = np.sort(trade_dates)
+    payed_tax = 0.0
+    payed_transaction_cost = 0.0
+    payed_asset_cost = 0.0
+    unused_tax_allowance = tax_allowance
+
+    saving_plan = 0.0
+
+    for i in range(time-1):
+        if saving_plan_arr is not None:
+            for j in range(len(saving_plan_keys)):
+                if  i // saving_plan_period == saving_plan_keys[j]:
+                    saving_plan = saving_plan_arr[j]
+                    break
+
+        if i % length_of_year == 0:
+            unused_tax_allowance = tax_allowance
+
+        if swing_performance[i] <= 0:
+            for j in range(i, time-1):
+                swing_performance[j] = 0
+                ttwror[j] = 0
+            break
+        elif np.sum(trade_dates <= i) % 2 == 1:
+            if i in trade_dates:
+                swing_performance[i+1] = (swing_performance[i] - trade_cost[0]) * (1 - spread[0])
+                value_at_last_trade = [swing_performance[i+1], swing_performance[i]]
+                payed_transaction_cost = payed_transaction_cost + trade_cost[0] + (swing_performance[i] - trade_cost[0]) * spread[0]
+            else:
+                swing_performance[i+1] = swing_performance[i]
+            if saving_plan != 0 and i % saving_plan_period == 0 and i != 0:
+                value_at_last_trade = [value_at_last_trade[0] + (saving_plan - trade_cost[1]) * (1 - spread[1]), swing_performance[i+1] + saving_plan]
+                swing_performance[i+1] += (saving_plan - trade_cost[1]) * (1 - spread[1])
+                ttwror_factor = ttwror[i]
+                payed_transaction_cost += trade_cost[1] + (saving_plan - trade_cost[1]) * spread[1]
+            payed_asset_cost += swing_performance[i+1] * (1 + data_gradient[i] / data[i]) * (1 - (1 - asset_cost) ** (1 / length_of_year))
+            swing_performance[i+1] *= (1 + data_gradient[i] / data[i]) * (1 - asset_cost) ** (1 / length_of_year)
+        else:
+            if i in trade_dates:
+                swing_performance[i+1] = swing_performance[i] - trade_cost[0]
+                payed_transaction_cost += trade_cost[0]
+                if tax_rate != 0 and (swing_performance[i+1] > value_at_last_trade[0] or consider_loss_for_taxes):
+                    taxable_profit = swing_performance[i+1] - value_at_last_trade[0]
+                    if taxable_profit > unused_tax_allowance:
+                        taxable_profit -= unused_tax_allowance
+                        unused_tax_allowance = 0
+                        tax = tax_rate * taxable_profit
+                        swing_performance[i+1] -= tax
+                        payed_tax += tax
+                    else:
+                        unused_tax_allowance -= taxable_profit
+            else:
+                swing_performance[i+1] = swing_performance[i]
+            if saving_plan != 0 and i % saving_plan_period == 0 and i != 0:
+                swing_performance[i+1] += saving_plan
+                value_at_last_trade[1] = swing_performance[i+1]
+                ttwror_factor = ttwror[i]
+
+        ttwror[i+1] = swing_performance[i+1] / value_at_last_trade[1] * ttwror_factor
+
+    return swing_performance, ttwror, payed_transaction_cost, payed_tax, payed_asset_cost
+
+
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
 
 
 class ChartSimulation(PerformanceAnalyzer):
