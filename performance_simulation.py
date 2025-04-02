@@ -30,10 +30,9 @@ class PerformanceAnalyzer(object):
         self.time = time
         self.length_of_year = length_of_year
 
-        self.initial_investment = initial_investment
+        self.initial_investment = float(initial_investment)
         self.saving_plan_period = saving_plan_period
         self.saving_plan = saving_plan
-
     
         self.smooth_period = smooth_period
         self.max_trades = max_trades
@@ -42,9 +41,44 @@ class PerformanceAnalyzer(object):
 
         self.trade_cost = trade_cost
         self.spread = spread
-        self.asset_cost = asset_cost
-        self.tax_rate = tax_rate
-        self.tax_allowance = tax_allowance
+        self.asset_cost = float(asset_cost)
+        self.tax_rate = float(tax_rate)
+        self.tax_allowance = float(tax_allowance)
+
+    @property
+    def trade_cost(self):
+        return self.__trade_cost
+    
+    @trade_cost.setter
+    def trade_cost(self, trade_cost):
+        if type(trade_cost) == float or type(trade_cost) == int:
+            trade_cost = float(trade_cost)
+            self.__trade_cost = np.array([trade_cost, trade_cost])
+        elif type(trade_cost) == list or type(trade_cost) == np.ndarray:
+            assert len(trade_cost) == 2, 'Trade cost must be a list or array of length 2'
+            trade_cost = np.array([float(trade_cost[0]), float(trade_cost[1])])
+            self.__trade_cost = trade_cost
+        else:
+            raise ValueError('Trade cost must be either a float, an integer, a list or an array')
+        assert np.all(self.__trade_cost >= 0), 'Trade cost must be greater than or equal to 0'
+
+    @property
+    def spread(self):
+        return self.__spread
+    
+    @spread.setter
+    def spread(self, spread):
+        if type(spread) == float or type(spread) == int:
+            spread = float(spread)
+            self.__spread = np.array([spread, spread])
+        elif type(spread) == list or type(spread) == np.ndarray:
+            assert len(spread) == 2, 'Spread must be a list or array of length 2'
+            spread = np.array([float(spread[0]), float(spread[1])])
+            self.__spread = spread
+        else:
+            raise ValueError('Spread must be either a float, an integer, a list or an array')
+        assert np.all( self.__spread  >= 0), 'Spread must be greater than or equal to 0'
+
 
     @property
     def saving_plan(self):  
@@ -59,6 +93,8 @@ class PerformanceAnalyzer(object):
 
             assert 1 in saving_plan.keys(), 'The saving plan must start at 1'
             assert all([i <= self.time//self.saving_plan_period for i in saving_plan.keys()]), 'There must be less saving plan entries than the number of saving plan periods'
+
+            saving_plan = {k: float(v) for k, v in saving_plan.items()}
 
             changing_executions = list(saving_plan.keys())
             changing_executions.sort()
@@ -80,6 +116,7 @@ class PerformanceAnalyzer(object):
             self.investet_over_time = np.cumsum(self.saving_plan_sched)
 
         elif type(saving_plan) == float or type(saving_plan) == int:
+            saving_plan = float(saving_plan)
             self.total_investment = self.initial_investment + saving_plan * (self.time//self.saving_plan_period)
 
             self.saving_plan_sched = np.array([self.initial_investment])
