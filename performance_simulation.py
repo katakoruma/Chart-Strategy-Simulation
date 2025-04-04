@@ -454,52 +454,52 @@ class PerformanceAnalyzer(object):
 
         plt.show()
     
-    def print_results(self, accuracy=2, *args, **kwargs):
+    def print_results(self, accuracy=1, *args, **kwargs):
 
         print("Initial investment: ", f"{self.initial_investment:,}")
         print("Total investment: ", f"{self.total_investment:,}")
         print()
 
         strategies = ['Index Performance', 'Buy and Hold', 'Swing Trade', 'Random Swing Trade']
-        metrics = ['Absolute Return', 'Relative Performance', 'TTWROR', 'Yearly Performance', 'Internal Rate of Return', 'Taxes', 'Transaction Cost', 'Asset Cost']
+        metrics = ['Absolute Return', 'Relative Performance (%)', 'TTWROR (%)', 'Yearly Performance (%)', 'Internal Rate of Return (%)', 'Taxes', 'Transaction Cost', 'Asset Cost']
 
         data = {
             'Index Performance': [
             self.performance[-1],
-            self.performance[-1] / self.initial_investment,
-            self.performance[-1] / self.initial_investment,
-            (self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time),
-            (self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time),
+            factor_to_percentage(self.performance[-1] / self.initial_investment),
+            factor_to_percentage(self.performance[-1] / self.initial_investment),
+            factor_to_percentage((self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time)),
+            factor_to_percentage((self.performance[-1] / self.initial_investment) ** (self.length_of_year / self.time)),
             None,  # Taxes not applicable
             None,  # Transaction Cost not applicable
             None   # Asset Cost not applicable
             ],
             'Buy and Hold': [
             self.buy_and_hold_performance[-1],
-            self.buy_and_hold_performance[-1] / self.total_investment,
-            self.buy_and_hold_ttwror[-1],
-            (self.buy_and_hold_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
-            self.internal_rate_of_return('buy_and_hold'),
+            factor_to_percentage(self.buy_and_hold_performance[-1] / self.total_investment),
+            factor_to_percentage(self.buy_and_hold_ttwror[-1]),
+            factor_to_percentage((self.buy_and_hold_performance[-1] / self.total_investment) ** (self.length_of_year / self.time)),
+            factor_to_percentage(self.internal_rate_of_return('buy_and_hold')),
             self.buy_and_hold_tax,
             self.buy_and_hold_transaction_cost,
             self.buy_and_hold_asset_cost
             ],
             'Swing Trade': [
-            self.swing_performance[-1],
-            self.swing_performance[-1] / self.total_investment,
-            self.swing_ttwror[-1],
-            (self.swing_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
-            self.internal_rate_of_return('swing_trade'),
-            self.swing_tax,
-            self.swing_transaction_cost,
-            self.swing_asset_cost
+            self.swing_trade_performance[-1],
+            factor_to_percentage(self.swing_trade_performance[-1] / self.total_investment),
+            factor_to_percentage(self.swing_trade_ttwror[-1]),
+            factor_to_percentage((self.swing_trade_performance[-1] / self.total_investment) ** (self.length_of_year / self.time)),
+            factor_to_percentage(self.internal_rate_of_return('swing_trade')),
+            self.swing_trade_tax,
+            self.swing_trade_transaction_cost,
+            self.swing_trade_asset_cost
             ],
             'Random Swing Trade': [
             self.random_swing_performance[-1],
-            self.random_swing_performance[-1] / self.total_investment,
-            self.random_swing_ttwror[-1],
-            (self.random_swing_performance[-1] / self.total_investment) ** (self.length_of_year / self.time),
-            self.internal_rate_of_return('random_swing_trade'),
+            factor_to_percentage(self.random_swing_performance[-1] / self.total_investment),
+            factor_to_percentage(self.random_swing_ttwror[-1]),
+            factor_to_percentage((self.random_swing_performance[-1] / self.total_investment) ** (self.length_of_year / self.time)),
+            factor_to_percentage(self.internal_rate_of_return('random_swing_trade')),
             self.random_swing_tax,
             self.random_swing_transaction_cost,
             self.random_swing_asset_cost
@@ -509,7 +509,7 @@ class PerformanceAnalyzer(object):
         self.results_df = pd.DataFrame(data, index=metrics)
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
-            print(self.results_df.round(accuracy))
+            print(self.results_df.map(lambda x: f"{x:,.{accuracy}f}" if isinstance(x, (int, float)) else x))
     
 
 
@@ -531,6 +531,103 @@ class PerformanceAnalyzer(object):
         print("\n")
 
 
+@njit(parallel=False)
+def compute_performance(
+    initial_investment, 
+    length_of_year, 
+    time, 
+    data, 
+    trade_dates, 
+    trade_cost, 
+    spread, 
+    saving_plan_arr,
+    saving_plan_keys,
+    saving_plan_period, 
+    asset_cost, 
+    tax_rate, 
+    tax_allowance, 
+    consider_loss_for_taxes=True
+):
+
+    swing_performance = np.zeros(time, dtype=np.float64)
+    swing_performance[0] = initial_investment
+    ttwror = np.zeros(time, dtype=np.float64)
+    ttwror[0] = 1.0
+    ttwror_factor = 1.0
+
+    data_gradient = data[1:] - data[:-1]
+    trade_dates = np.sort(trade_dates)
+    payed_tax = 0.0
+    payed_transaction_cost = 0.0
+    payed_asset_cost = 0.0
+    unused_tax_allowance = tax_allowance
+
+    saving_plan = 0.0
+
+    for i in range(time-1):
+        if saving_plan_arr is not None:
+            for j in range(len(saving_plan_keys)):
+                if  i // saving_plan_period == saving_plan_keys[j]:
+                    saving_plan = saving_plan_arr[j]
+                    break
+
+        if i % length_of_year == 0:
+            unused_tax_allowance = tax_allowance
+
+        if swing_performance[i] <= 0:
+            for j in range(i, time-1):
+                swing_performance[j] = 0
+                ttwror[j] = 0
+            break
+        elif np.sum(trade_dates <= i) % 2 == 1:
+            if i in trade_dates:
+                swing_performance[i+1] = (swing_performance[i] - trade_cost[0]) * (1 - spread[0])
+                value_at_last_trade = [swing_performance[i+1], swing_performance[i]]
+                payed_transaction_cost = payed_transaction_cost + trade_cost[0] + (swing_performance[i] - trade_cost[0]) * spread[0]
+            else:
+                swing_performance[i+1] = swing_performance[i]
+            if saving_plan != 0 and i % saving_plan_period == 0 and i != 0:
+                value_at_last_trade = [value_at_last_trade[0] + (saving_plan - trade_cost[1]) * (1 - spread[1]), swing_performance[i+1] + saving_plan]
+                swing_performance[i+1] += (saving_plan - trade_cost[1]) * (1 - spread[1])
+                ttwror_factor = ttwror[i]
+                payed_transaction_cost += trade_cost[1] + (saving_plan - trade_cost[1]) * spread[1]
+            payed_asset_cost += swing_performance[i+1] * (1 + data_gradient[i] / data[i]) * (1 - (1 - asset_cost) ** (1 / length_of_year))
+            swing_performance[i+1] *= (1 + data_gradient[i] / data[i]) * (1 - asset_cost) ** (1 / length_of_year)
+        else:
+            if i in trade_dates:
+                swing_performance[i+1] = swing_performance[i] - trade_cost[0]
+                payed_transaction_cost += trade_cost[0]
+                if tax_rate != 0 and (swing_performance[i+1] > value_at_last_trade[0] or consider_loss_for_taxes):
+                    taxable_profit = swing_performance[i+1] - value_at_last_trade[0]
+                    if taxable_profit > unused_tax_allowance:
+                        taxable_profit -= unused_tax_allowance
+                        unused_tax_allowance = 0
+                        tax = tax_rate * taxable_profit
+                        swing_performance[i+1] -= tax
+                        payed_tax += tax
+                    else:
+                        unused_tax_allowance -= taxable_profit
+            else:
+                swing_performance[i+1] = swing_performance[i]
+            if saving_plan != 0 and i % saving_plan_period == 0 and i != 0:
+                swing_performance[i+1] += saving_plan
+                value_at_last_trade[1] = swing_performance[i+1]
+                ttwror_factor = ttwror[i]
+
+        ttwror[i+1] = swing_performance[i+1] / value_at_last_trade[1] * ttwror_factor
+
+    return swing_performance, ttwror, payed_transaction_cost, payed_tax, payed_asset_cost
+
+
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
+
+def factor_to_percentage(factor):
+    if type(factor) == list or type(factor) == np.ndarray:
+        factor = np.array(factor)
+    return (factor - 1) * 100
 
 
 class ChartSimulation(PerformanceAnalyzer):
@@ -833,7 +930,7 @@ class MonteCarloSimulation:
         plt.legend()
         plt.show()
 
-    def print_results(self, accuracy=2, *args, **kwargs):
+    def print_results(self, accuracy=1, *args, **kwargs):
 
         if not self.chartsim is None:
             time = self.chartsim.time
@@ -858,17 +955,17 @@ class MonteCarloSimulation:
         print("Total investment: ", f"{total_investment:,}")
         print()
 
-        metrics = ['Overall Return', 'Relative Performance', 'TTWROR', 'Yearly Performance', 'Internal Rate of Return', 'Taxes', 'Transaction Cost', 'Asset Cost']
+        metrics = ['Overall Return', 'Relative Performance (%)', 'TTWROR (%)', 'Yearly Performance (%)', 'Internal Rate of Return (%)', 'Taxes', 'Transaction Cost', 'Asset Cost']
         strategies = ['Index Performance', 'Buy and Hold', 'Swing Trade', 'Random Swing Trade']
 
         data = {}
 
         data['Index Performance'] = {
-            'Overall Return': [self.index_performance.mean(), self.index_performance.std(), np.median(self.index_performance)],
-            'Relative Performance': [np.mean(self.index_performance / initial_investment), np.std(self.index_performance / initial_investment), np.median(self.index_performance / initial_investment)],
-            'TTWROR': [np.mean(self.index_performance / initial_investment), np.std(self.index_performance / initial_investment), np.median(self.index_performance / initial_investment)],
-            'Yearly Performance': [np.mean((self.index_performance / initial_investment) ** (length_of_year / time)), np.std((self.index_performance / initial_investment) ** (length_of_year / time)), np.median((self.index_performance / initial_investment) ** (length_of_year / time))],
-            'Internal Rate of Return': [np.mean((self.index_performance / initial_investment) ** (length_of_year / time)), np.std((self.index_performance / initial_investment) ** (length_of_year / time)), np.median((self.index_performance / initial_investment) ** (length_of_year / time))],
+            'Overall Return': [self.index_profit.mean(), self.index_profit.std(), np.median(self.index_profit)],
+            'Relative Performance (%)': [np.mean(factor_to_percentage(self.index_profit / initial_investment)), np.std(factor_to_percentage(self.index_profit / initial_investment)), np.median(factor_to_percentage(self.index_profit / initial_investment))],
+            'TTWROR (%)': [np.mean(factor_to_percentage(self.index_profit / initial_investment)), np.std(factor_to_percentage(self.index_profit / initial_investment)), np.median(factor_to_percentage(self.index_profit / initial_investment))],
+            'Yearly Performance (%)': [np.mean(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time))), np.std(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time))), np.median(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time)))],
+            'Internal Rate of Return (%)': [np.mean(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time))), np.std(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time))), np.median(factor_to_percentage((self.index_profit / initial_investment) ** (length_of_year / time)))],
             'Taxes': [np.nan, np.nan, np.nan],
             'Transaction Cost': [np.nan, np.nan, np.nan],
             'Asset Cost': [np.nan, np.nan, np.nan]
@@ -877,10 +974,10 @@ class MonteCarloSimulation:
         internal_rates = [internal_rate_func(self.buy_and_hold_profit[i]) for i in range(len(self.buy_and_hold_profit))]
         data['Buy and Hold'] = {
             'Overall Return': [self.buy_and_hold_profit.mean(), self.buy_and_hold_profit.std(), np.median(self.buy_and_hold_profit)],
-            'Relative Performance': [np.mean(self.buy_and_hold_profit / total_investment), np.std(self.buy_and_hold_profit / total_investment), np.median(self.buy_and_hold_profit / total_investment)],
-            'TTWROR': [np.mean(self.buy_and_hold_ttwror), np.std(self.buy_and_hold_ttwror), np.median(self.buy_and_hold_ttwror)],
-            'Yearly Performance': [np.mean((self.buy_and_hold_profit / total_investment) ** (length_of_year / time)), np.std((self.buy_and_hold_profit / total_investment) ** (length_of_year / time)), np.median((self.buy_and_hold_profit / total_investment) ** (length_of_year / time))],
-            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
+            'Relative Performance (%)': [np.mean(factor_to_percentage(self.buy_and_hold_profit / total_investment)), np.std(factor_to_percentage(self.buy_and_hold_profit / total_investment)), np.median(factor_to_percentage(self.buy_and_hold_profit / total_investment))],
+            'TTWROR (%)': [np.mean(factor_to_percentage(self.buy_and_hold_ttwror)), np.std(factor_to_percentage(self.buy_and_hold_ttwror)), np.median(factor_to_percentage(self.buy_and_hold_ttwror))],
+            'Yearly Performance (%)': [np.mean(factor_to_percentage((self.buy_and_hold_profit / total_investment) ** (length_of_year / time))), np.std(factor_to_percentage((self.buy_and_hold_profit / total_investment) ** (length_of_year / time))), np.median(factor_to_percentage((self.buy_and_hold_profit / total_investment) ** (length_of_year / time)))],
+            'Internal Rate of Return (%)': [np.mean(factor_to_percentage(internal_rates)), np.std(factor_to_percentage(internal_rates)), np.median(factor_to_percentage(internal_rates))],
             'Taxes': [np.mean(self.buy_and_hold_tax), np.std(self.buy_and_hold_tax), np.median(self.buy_and_hold_tax)],
             'Transaction Cost': [np.mean(self.buy_and_hold_transaction_cost), np.std(self.buy_and_hold_transaction_cost), np.median(self.buy_and_hold_transaction_cost)],
             'Asset Cost': [np.mean(self.buy_and_hold_asset_cost), np.std(self.buy_and_hold_asset_cost), np.median(self.buy_and_hold_asset_cost)]
@@ -888,23 +985,23 @@ class MonteCarloSimulation:
 
         internal_rates = [internal_rate_func(self.swing_profit[i]) for i in range(len(self.swing_profit))]
         data['Swing Trade'] = {
-            'Overall Return': [self.swing_profit.mean(), self.swing_profit.std(), np.median(self.swing_profit)],
-            'Relative Performance': [np.mean(self.swing_profit / total_investment), np.std(self.swing_profit / total_investment), np.median(self.swing_profit / total_investment)],
-            'TTWROR': [np.mean(self.swing_ttwror), np.std(self.swing_ttwror), np.median(self.swing_ttwror)],
-            'Yearly Performance': [np.mean((self.swing_profit / total_investment) ** (length_of_year / time)), np.std((self.swing_profit / total_investment) ** (length_of_year / time)), np.median((self.swing_profit / total_investment) ** (length_of_year / time))],
-            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
-            'Taxes': [np.mean(self.swing_tax), np.std(self.swing_tax), np.median(self.swing_tax)],
-            'Transaction Cost': [np.mean(self.swing_transaction_cost), np.std(self.swing_transaction_cost), np.median(self.swing_transaction_cost)],
-            'Asset Cost': [np.mean(self.swing_asset_cost), np.std(self.swing_asset_cost), np.median(self.swing_asset_cost)]
+            'Overall Return': [self.swing_trade_profit.mean(), self.swing_trade_profit.std(), np.median(self.swing_trade_profit)],
+            'Relative Performance (%)': [np.mean(factor_to_percentage(self.swing_trade_profit / total_investment)), np.std(factor_to_percentage(self.swing_trade_profit / total_investment)), np.median(factor_to_percentage(self.swing_trade_profit / total_investment))],
+            'TTWROR (%)': [np.mean(factor_to_percentage(self.swing_trade_ttwror)), np.std(factor_to_percentage(self.swing_trade_ttwror)), np.median(factor_to_percentage(self.swing_trade_ttwror))],
+            'Yearly Performance (%)': [np.mean(factor_to_percentage((self.swing_trade_profit / total_investment) ** (length_of_year / time))), np.std(factor_to_percentage((self.swing_trade_profit / total_investment) ** (length_of_year / time))), np.median(factor_to_percentage((self.swing_trade_profit / total_investment) ** (length_of_year / time)))],
+            'Internal Rate of Return (%)': [np.mean(factor_to_percentage(internal_rates)), np.std(factor_to_percentage(internal_rates)), np.median(factor_to_percentage(internal_rates))],
+            'Taxes': [np.mean(self.swing_trade_tax), np.std(self.swing_trade_tax), np.median(self.swing_trade_tax)],
+            'Transaction Cost': [np.mean(self.swing_trade_transaction_cost), np.std(self.swing_trade_transaction_cost), np.median(self.swing_trade_transaction_cost)],
+            'Asset Cost': [np.mean(self.swing_trade_asset_cost), np.std(self.swing_trade_asset_cost), np.median(self.swing_trade_asset_cost)]
         }
 
         internal_rates = [internal_rate_func(self.random_swing_profit[i]) for i in range(len(self.random_swing_profit))]
         data['Random Swing Trade'] = {
             'Overall Return': [self.random_swing_profit.mean(), self.random_swing_profit.std(), np.median(self.random_swing_profit)],
-            'Relative Performance': [np.mean(self.random_swing_profit / total_investment), np.std(self.random_swing_profit / total_investment), np.median(self.random_swing_profit / total_investment)],
-            'TTWROR': [np.mean(self.random_swing_ttwror), np.std(self.random_swing_ttwror), np.median(self.random_swing_ttwror)],
-            'Yearly Performance': [np.mean((self.random_swing_profit / total_investment) ** (length_of_year / time)), np.std((self.random_swing_profit / total_investment) ** (length_of_year / time)), np.median((self.random_swing_profit / total_investment) ** (length_of_year / time))],
-            'Internal Rate of Return': [np.mean(internal_rates), np.std(internal_rates), np.median(internal_rates)],
+            'Relative Performance (%)': [np.mean(factor_to_percentage(self.random_swing_profit / total_investment)), np.std(factor_to_percentage(self.random_swing_profit / total_investment)), np.median(factor_to_percentage(self.random_swing_profit / total_investment))],
+            'TTWROR (%)': [np.mean(factor_to_percentage(self.random_swing_ttwror)), np.std(factor_to_percentage(self.random_swing_ttwror)), np.median(factor_to_percentage(self.random_swing_ttwror))],
+            'Yearly Performance (%)': [np.mean(factor_to_percentage((self.random_swing_profit / total_investment) ** (length_of_year / time))), np.std(factor_to_percentage((self.random_swing_profit / total_investment) ** (length_of_year / time))), np.median(factor_to_percentage((self.random_swing_profit / total_investment) ** (length_of_year / time)))],
+            'Internal Rate of Return (%)': [np.mean(factor_to_percentage(internal_rates)), np.std(factor_to_percentage(internal_rates)), np.median(factor_to_percentage(internal_rates))],
             'Taxes': [np.mean(self.random_swing_tax), np.std(self.random_swing_tax), np.median(self.random_swing_tax)],
             'Transaction Cost': [np.mean(self.random_swing_transaction_cost), np.std(self.random_swing_transaction_cost), np.median(self.random_swing_transaction_cost)],
             'Asset Cost': [np.mean(self.random_swing_asset_cost), np.std(self.random_swing_asset_cost), np.median(self.random_swing_asset_cost)]
@@ -919,7 +1016,7 @@ class MonteCarloSimulation:
         self.results_mc_df = pd.DataFrame(df_data, index=index, columns=metrics).T
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
-            print(self.results_mc_df.round(accuracy))
+            print(self.results_mc_df.map(lambda x: f"{x:,.{accuracy}f}" if isinstance(x, (int, float)) else x))
 
 
 if __name__ == "__main__":
