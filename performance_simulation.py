@@ -7,7 +7,6 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from numba import njit
 import multiprocessing
-import pandas as pd
 
 class PerformanceAnalyzer(object):
 
@@ -684,6 +683,7 @@ class ChartImport(PerformanceAnalyzer):
                  path="data/msci_complete.csv", 
                  date_col="Date",
                  val_col="Close",
+                 rebalancing_period=261,
                  *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -692,8 +692,42 @@ class ChartImport(PerformanceAnalyzer):
         self.path = path
         self.date_col = date_col
         self.val_col = val_col
+        self.rebalancing_period = rebalancing_period
 
-    def load_data(self, path=None, date_col=None, val_col=None, limit=None, normalize=True, *args, **kwargs):
+    @property
+    def path(self):  
+        return self.__path
+    
+    @path.setter
+    def path(self, path):
+        if type(path) == str:
+            self.__path = path
+        elif type(path) == list:
+            for entry in path:
+                assert type(entry) == dict, 'Path must be a list of dictionaries'
+                assert 'path' in entry, 'Path must be a list of dictionaries with the key "path"'
+                assert 'weight' in entry, 'Path must be a list of dictionaries with the key "weight"'
+                assert 'limit' in entry, 'Path must be a list of dictionaries with the key "limit"'
+
+            len_slice = lambda sl: (sl.stop - sl.start + (sl.step - 1)) // sl.step 
+
+            assert np.sum([entry['weight'] for entry in path]) == 1, 'The sum of the weights must be equal to 1'
+            assert np.all(len_slice(path[0]['limit']) == len_slice(path[i]['limit']) for i in range(1, len(path))), 'The size of the slices must be equal'
+
+            self.__path = path
+        else:
+            raise ValueError('Path must be either a string or a dictionary')
+
+    def load_data(
+                    self, 
+                    path=None, 
+                    date_col=None, 
+                    val_col=None, 
+                    limit=None, 
+                    normalize=True,  
+                    rebalancing_period=None,
+                    *args, **kwargs
+                  ):
     
         if path is None:
             path = self.path
@@ -703,17 +737,50 @@ class ChartImport(PerformanceAnalyzer):
             val_col = self.val_col
         if limit is None:
             limit = slice(self.time)
+        if rebalancing_period is None:
+            rebalancing_period = self.rebalancing_period
         
+        
+        if type(path) == list:
+            dataframes = []
 
-        self.import_data_df = pd.read_csv(path)
-        self.import_data_df[date_col] = pd.to_datetime(self.import_data_df[date_col])
-        self.import_data_df.sort_values(by=date_col, ascending=True, inplace=True) 
+            for pa in path:
+                dataframes.append(pd.read_csv(pa['path'])[pa['limit']])
 
-        if normalize:
-            self.import_data_df[val_col] = self.import_data_df[val_col] * self.initial_investment / self.import_data_df[val_col].iloc[0]
+                dataframes[-1][date_col] = pd.to_datetime(dataframes[-1][date_col])
+                dataframes[-1].sort_values(by=date_col, ascending=True, inplace=True)
 
-        self.performance = self.import_data_df[val_col].to_numpy()[limit]
-        self.dates = self.import_data_df[date_col].to_numpy()[limit]
+                dataframes[-1][val_col] = dataframes[-1][val_col] / dataframes[-1][val_col].iloc[0]
+
+
+            self.dates = dataframes[0][date_col].to_numpy()
+            self.perfmormance = np.zeros(limit)
+            self.perfmormance[0] = self.initial_investment
+
+            for i in range(self.time):
+                self.performance[i] = self.perfmormance[i//rebalancing_period] * np.sum([dataframes[j][val_col].to_numpy()[i] * path[j]['weight'] for j in range(len(path))])
+
+                if i % rebalancing_period == 0:
+                    for j in range(len(path)):
+                        dataframes[j][val_col] /= dataframes[j][val_col].iloc[i]
+            
+            self.import_data_df = pd.DataFrame(data=[self.dates, self.performance], index=[date_col, val_col]).T
+
+
+        elif type(path) == str:
+            self.import_data_df = pd.read_csv(path)
+
+            self.import_data_df[date_col] = pd.to_datetime(self.import_data_df[date_col])
+            self.import_data_df.sort_values(by=date_col, ascending=True, inplace=True) 
+
+            # if normalize:
+            #     self.import_data_df[val_col] = self.import_data_df[val_col] * self.initial_investment / self.import_data_df[val_col].iloc[0]
+
+            self.performance = self.import_data_df[val_col].to_numpy()[limit]
+            self.dates = self.import_data_df[date_col].to_numpy()[limit]
+
+        else:
+            raise ValueError('Path must be either a string or a list of dictionaries')
 
         if normalize:
             self.performance = self.performance * self.initial_investment / self.performance[0]
