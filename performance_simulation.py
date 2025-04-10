@@ -7,6 +7,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from numba import njit
 import multiprocessing
+import warnings
 
 class PerformanceAnalyzer(object):
 
@@ -684,6 +685,7 @@ class ChartImport(PerformanceAnalyzer):
                  date_col="Date",
                  val_col="Close",
                  rebalancing_period=261,
+                 limit=None,
                  *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -693,6 +695,11 @@ class ChartImport(PerformanceAnalyzer):
         self.date_col = date_col
         self.val_col = val_col
         self.rebalancing_period = rebalancing_period
+        if limit is None:
+            self.limit = slice(self.time)
+        else:
+            assert type(limit) == slice, 'Limit must be a slice object'
+            self.limit = limit
 
     @property
     def path(self):  
@@ -725,6 +732,8 @@ class ChartImport(PerformanceAnalyzer):
                     val_col=None, 
                     limit=None, 
                     normalize=True,  
+                    time=None,
+                    length_of_year=None,
                     rebalancing_period=None,
                     *args, **kwargs
                   ):
@@ -736,7 +745,11 @@ class ChartImport(PerformanceAnalyzer):
         if val_col is None:
             val_col = self.val_col
         if limit is None:
-            limit = slice(self.time)
+            limit = self.limit
+        if time is None:
+            time = self.time
+        if length_of_year is None:
+            length_of_year = self.length_of_year
         if rebalancing_period is None:
             rebalancing_period = self.rebalancing_period
         
@@ -746,24 +759,33 @@ class ChartImport(PerformanceAnalyzer):
 
             for pa in path:
                 dataframes.append(pd.read_csv(pa['path'])[pa['limit']])
-
+                dataframes[-1].reset_index(drop=True, inplace=True)
                 dataframes[-1][date_col] = pd.to_datetime(dataframes[-1][date_col])
                 dataframes[-1].sort_values(by=date_col, ascending=True, inplace=True)
 
-                dataframes[-1][val_col] = dataframes[-1][val_col] / dataframes[-1][val_col].iloc[0]
+                dataframes[-1][val_col] = dataframes[-1][val_col] / dataframes[-1].loc[0, val_col]
+
+                if "factor" in pa.keys():
+                    for i in range(len(dataframes[-1][val_col])):
+                        dataframes[-1].loc[i, val_col] *= pa['factor']**(i/length_of_year)
+                        
+
+            if not np.all([dataframes[0][date_col].to_numpy() == dataframes[i][date_col].to_numpy() for i in range(1, len(dataframes))]):
+                warnings.warn('The dates of the dataframes are not equal. The first dataframe will be used as the reference.')
 
 
             self.dates = dataframes[0][date_col].to_numpy()
-            self.perfmormance = np.zeros(limit)
-            self.perfmormance[0] = self.initial_investment
+            self.performance = np.zeros(time)
+            self.performance[0] = self.initial_investment
 
-            for i in range(self.time):
-                self.performance[i] = self.perfmormance[i//rebalancing_period] * np.sum([dataframes[j][val_col].to_numpy()[i] * path[j]['weight'] for j in range(len(path))])
+            for i in range(1, time):
 
-                if i % rebalancing_period == 0:
-                    for j in range(len(path)):
-                        dataframes[j][val_col] /= dataframes[j][val_col].iloc[i]
+                self.performance[i] = self.performance[(i-1)//rebalancing_period * rebalancing_period] * np.sum([dataframes[j][val_col].to_numpy()[i] * path[j]['weight'] for j in range(len(path))])
             
+                if i % rebalancing_period == 0 and i != 0:
+                    for j in range(len(path)):
+                        dataframes[j][val_col] /= dataframes[j].loc[i, val_col]
+
             self.import_data_df = pd.DataFrame(data=[self.dates, self.performance], index=[date_col, val_col]).T
 
 
@@ -785,7 +807,7 @@ class ChartImport(PerformanceAnalyzer):
         if normalize:
             self.performance = self.performance * self.initial_investment / self.performance[0]
 
-        return  self.performance, self.dates
+        return self.performance, self.dates
     
     def update_selection(self, date_col=None, val_col=None, limit=None, normalize=True, *args, **kwargs):
 
