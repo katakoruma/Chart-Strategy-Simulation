@@ -794,14 +794,14 @@ class ChartImport(PerformanceAnalyzer):
             performance = np.zeros(time)
             performance[0] = self.initial_investment
 
+            indices = [dataframes[i][val_col].to_numpy()[limits[i]] for i in range(len(dataframes))]
+            indices = np.array(indices)
+
             performance = _rebalancing_data(
                                             time=time,
-                                            performance=performance,
-                                            dataframes=dataframes,
-                                            limits=limits,
+                                            indices=indices,
                                             weights=weights,
                                             rebalancing_period=rebalancing_period,
-                                            val_col=val_col
                                             )
             
             self.performance = performance
@@ -878,14 +878,14 @@ class ChartImport(PerformanceAnalyzer):
             if warn and not np.all([dataframes[0].loc[limits[0],date_col].to_numpy() == dataframes[i].loc[limits[i],date_col].to_numpy() for i in range(1, len(dataframes))]):
                 warnings.warn('The dates of the dataframes are not equal. The first dataframe will be used as the reference.')
 
+            indices = [dataframes[i][val_col].to_numpy()[limits[i]] for i in range(len(dataframes))]
+            indices = np.array(indices)
+
             self.performance = _rebalancing_data(
                                                 time=time,
-                                                performance=performance,
-                                                dataframes=dataframes,
-                                                limits=limits,
+                                                indices=indices,
                                                 weights=weights,
                                                 rebalancing_period=rebalancing_period,
-                                                val_col=val_col
                                                 )
             self.dates = self.import_data_df[date_col].to_numpy()[limits[0]]
 
@@ -906,26 +906,28 @@ class ChartImport(PerformanceAnalyzer):
 
         super().print_parameters()
 
+@njit(parallel=False)
 def _rebalancing_data(
                     time, 
-                    performance, 
-                    dataframes, 
-                    limits,
+                    indices, 
                     weights,
                     rebalancing_period,
-                    val_col
                     ):
     
-    dataframes = [df[limits[i]] for i, df in enumerate(dataframes)]
-    dataframes = [df.reset_index(drop=True) for df in dataframes]
+    performance = np.zeros(time, dtype=np.float64)
+    performance[0] = 1.0
 
     for i in range(1, time):
 
         if (i-1) % rebalancing_period == 0:
-            for j, df in enumerate(dataframes):
-                df[val_col] /= df.loc[i-1, val_col]
+            for j in range(len(indices)):
+                indices[j] /= indices[j][i-1]
 
-        performance[i] = performance[(i-1)//rebalancing_period * rebalancing_period] * np.sum([df.loc[i, val_col] * weights[j] for j, df in enumerate(dataframes)])
+        factor = 0
+        for j in range(len(indices)):
+            factor += indices[j][i] * weights[j]
+            
+        performance[i] = performance[(i-1)//rebalancing_period * rebalancing_period] * factor
 
     return performance
 
