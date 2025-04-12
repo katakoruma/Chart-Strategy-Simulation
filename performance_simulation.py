@@ -521,21 +521,21 @@ class PerformanceAnalyzer(object):
 
 @njit(parallel=False)
 def _compute_performance(
-    initial_investment, 
-    length_of_year, 
-    time, 
-    data, 
-    trade_dates, 
-    trade_cost, 
-    spread, 
-    saving_plan_arr,
-    saving_plan_keys,
-    saving_plan_period, 
-    asset_cost, 
-    tax_rate, 
-    tax_allowance, 
-    consider_loss_for_taxes=True
-):
+                        initial_investment, 
+                        length_of_year, 
+                        time, 
+                        data, 
+                        trade_dates, 
+                        trade_cost, 
+                        spread, 
+                        saving_plan_arr,
+                        saving_plan_keys,
+                        saving_plan_period, 
+                        asset_cost, 
+                        tax_rate, 
+                        tax_allowance, 
+                        consider_loss_for_taxes=True
+                    ):
 
     swing_performance = np.zeros(time, dtype=np.float64)
     swing_performance[0] = initial_investment
@@ -634,30 +634,68 @@ class ChartSimulation(PerformanceAnalyzer):
             self.mode = mode
             # Additional initialization logic for ChartSimulation
 
-        def simulate_performance(self, *args, **kwargs):
+        def simulate_performance(self, 
+                                    time=None,
+                                    dt=None,
+                                    length_of_year=None,
+                                    yearly_return=None,
+                                    initial_investment=None,
+                                    gain_phase=None,
+                                    loss_phase=None,
+                                    daily_return=None,
+                                    daily_loss=None,
+                                    mode=None,
+                                 *args, **kwargs
+                                 ):
 
-            if self.mode == "fixed_gain_phase":
-                self.daily_return = self.yearly_return**(1/self.length_of_year/(2*self.gain_phase-1))
-                self.daily_loss = 1/self.daily_return
 
-            elif self.mode == "fixed_return":
-                self.gain_phase = np.log(self.yearly_return**(1/self.length_of_year)/self.daily_loss) / np.log(self.daily_return/self.daily_loss)
-                self.loss_phase = 1 - self.gain_phase 
+            if time is None:
+                time = self.time
+            if dt is None:
+                dt = self.dt
+            if length_of_year is None:
+                length_of_year = self.length_of_year
+            if yearly_return is None:
+                yearly_return = self.yearly_return
+            if initial_investment is None:
+                initial_investment = self.initial_investment
+            if gain_phase is None:
+                gain_phase = self.gain_phase
+            if loss_phase is None:
+                loss_phase = self.loss_phase
+            if daily_return is None:
+                daily_return = self.daily_return
+            if daily_loss is None:
+                daily_loss = self.daily_loss
+            if mode is None:
+                mode = self.mode
+            
+
+            if mode == "fixed_gain_phase":
+                daily_return = yearly_return**(1/length_of_year/(2*gain_phase-1))
+                daily_loss = 1/daily_return
+
+            elif mode == "fixed_return":
+                gain_phase = np.log(yearly_return**(1/length_of_year)/daily_loss) / np.log(daily_return/daily_loss)
+                loss_phase = 1 - gain_phase 
             else:
                 raise ValueError("Mode must be either fixed_gain_phase or fixed_return")
 
-            self.expected_total_return = self.daily_return**(self.gain_phase * self.time) * self.daily_loss**(self.loss_phase * self.time)
-            
-            performance = np.array([self.initial_investment])
-            phase = np.zeros(self.time)
+            self.expected_total_return = daily_return**(gain_phase * time) * daily_loss**(loss_phase * time)
 
-            rnd = np.random.choice([0, 1], p=[self.loss_phase, self.gain_phase], size=self.time//self.dt)
 
-            for i in range(self.time//self.dt):
-                phase[i*self.dt:max((i+1)*self.dt, self.time)] = rnd[i]
-
-            for i in range(self.time-1):
-                performance = np.append(performance, performance[-1] * self.daily_return if phase[i] == 1 else performance[-1] * self.daily_loss)
+            performance, phase = _generate_index(
+                                                        time=time,
+                                                        dt=dt,
+                                                        length_of_year=length_of_year,
+                                                        yearly_return=yearly_return,
+                                                        initial_investment=initial_investment,
+                                                        gain_phase=gain_phase,
+                                                        loss_phase=loss_phase,
+                                                        daily_return=daily_return,
+                                                        daily_loss=daily_loss,
+                                                        mode=mode,
+                                                    )
 
             self.performance = performance
             self.phase = phase
@@ -677,6 +715,35 @@ class ChartSimulation(PerformanceAnalyzer):
 
             super().print_parameters()
         
+
+@njit(parallel=False)
+def _generate_index(
+                        time,
+                        dt,
+                        length_of_year,
+                        yearly_return,
+                        initial_investment,
+                        gain_phase,
+                        loss_phase,
+                        daily_return,
+                        daily_loss,
+                        mode,
+                        ):
+    
+    performance = np.zeros(time, dtype=np.float64)
+    performance[0] = initial_investment
+    phase = np.zeros(time, dtype=np.int32)
+
+    rnd = np.random.binomial(1, gain_phase, size=time//dt )
+
+    for i in range(time//dt):
+        phase[i*dt:max((i+1)*dt, time)] = rnd[i]
+
+    for i in range(1, time):
+        performance[i] = performance[i-1] * (daily_return if phase[i] == 1 else daily_loss)
+
+    return performance, phase
+
 
 class ChartImport(PerformanceAnalyzer):
 
