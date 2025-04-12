@@ -193,7 +193,7 @@ class PerformanceAnalyzer(object):
             saving_plan_values = [saving_plan]
             saving_plan_keys = [0]
 
-        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = compute_performance(
+        self.random_swing_performance, self.random_swing_ttwror, self.random_swing_transaction_cost, self.random_swing_tax, self.random_swing_asset_cost = _compute_performance(
                                                                                                                                                                                     initial_investment=self.initial_investment, 
                                                                                                                                                                                     length_of_year=self.length_of_year, 
                                                                                                                                                                                     time=self.time, 
@@ -287,7 +287,7 @@ class PerformanceAnalyzer(object):
             saving_plan_values = [saving_plan]
             saving_plan_keys = [0]
             
-        self.swing_trade_performance, self.swing_trade_ttwror, self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = compute_performance(
+        self.swing_trade_performance, self.swing_trade_ttwror, self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = _compute_performance(
                                                                                                                                                  initial_investment=self.initial_investment, 
                                                                                                                                                  length_of_year=self.length_of_year, 
                                                                                                                                                  time=self.time, 
@@ -347,7 +347,7 @@ class PerformanceAnalyzer(object):
             saving_plan_values = [saving_plan]
             saving_plan_keys = [0]
             
-        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = compute_performance(
+        self.buy_and_hold_performance, self.buy_and_hold_ttwror, self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost = _compute_performance(
                                                                                                                                                                                     initial_investment=self.initial_investment, 
                                                                                                                                                                                     length_of_year=self.length_of_year, 
                                                                                                                                                                                     time=self.time, 
@@ -520,7 +520,7 @@ class PerformanceAnalyzer(object):
 
 
 @njit(parallel=False)
-def compute_performance(
+def _compute_performance(
     initial_investment, 
     length_of_year, 
     time, 
@@ -758,7 +758,7 @@ class ChartImport(PerformanceAnalyzer):
             dataframes = []
 
             for pa in path:
-                dataframes.append(pd.read_csv(pa['path'])[pa['limit']])
+                dataframes.append(pd.read_csv(pa['path']))
                 dataframes[-1].reset_index(drop=True, inplace=True)
                 dataframes[-1][date_col] = pd.to_datetime(dataframes[-1][date_col])
                 dataframes[-1].sort_values(by=date_col, ascending=True, inplace=True)
@@ -770,23 +770,30 @@ class ChartImport(PerformanceAnalyzer):
                         dataframes[-1].loc[i, val_col] *= pa['factor']**(i/length_of_year)
                         
 
-            if not np.all([dataframes[0][date_col].to_numpy() == dataframes[i][date_col].to_numpy() for i in range(1, len(dataframes))]):
+            limits = [pa['limit'] for pa in path]
+            weights = [pa['weight'] for pa in path]
+
+            if not np.all([dataframes[0].loc[limits[0],date_col].to_numpy() == dataframes[i].loc[limits[i],date_col].to_numpy() for i in range(1, len(dataframes))]):
                 warnings.warn('The dates of the dataframes are not equal. The first dataframe will be used as the reference.')
 
+            dates = dataframes[0][date_col].to_numpy()[limits[0]]
+            performance = np.zeros(time)
+            performance[0] = self.initial_investment
 
-            self.dates = dataframes[0][date_col].to_numpy()
-            self.performance = np.zeros(time)
-            self.performance[0] = self.initial_investment
-
-            for i in range(1, time):
-
-                self.performance[i] = self.performance[(i-1)//rebalancing_period * rebalancing_period] * np.sum([dataframes[j][val_col].to_numpy()[i] * path[j]['weight'] for j in range(len(path))])
+            performance = _rebalancing_data(
+                                            time=time,
+                                            performance=performance,
+                                            dataframes=dataframes,
+                                            limits=limits,
+                                            weights=weights,
+                                            rebalancing_period=rebalancing_period,
+                                            val_col=val_col
+                                            )
             
-                if i % rebalancing_period == 0 and i != 0:
-                    for j in range(len(path)):
-                        dataframes[j][val_col] /= dataframes[j].loc[i, val_col]
-
-            self.import_data_df = pd.DataFrame(data=[self.dates, self.performance], index=[date_col, val_col]).T
+            self.performance = performance
+            self.dates = dates
+            self.dataframes = dataframes
+            self.import_data_df = dataframes[0]
 
 
         elif type(path) == str:
@@ -809,18 +816,62 @@ class ChartImport(PerformanceAnalyzer):
 
         return self.performance, self.dates
     
-    def update_selection(self, date_col=None, val_col=None, limit=None, normalize=True, *args, **kwargs):
+    def update_selection(
+                         self, 
+                         performance=None, 
+                         dataframes=None, 
+                         date_col=None, 
+                         val_col=None, 
+                         limit=None,
+                         limits=None,
+                         path=None,  
+                         rebalancing_period=None, 
+                         normalize=True, 
+                         rebalancing=False, 
+                         *args, **kwargs
+                         ):
 
+        if performance is None:
+            performance = self.performance
+        if dataframes is None and hasattr(self, 'dataframes'):
+            dataframes = self.dataframes
         if date_col is None:
             date_col = self.date_col
         if val_col is None:
             val_col = self.val_col
         if limit is None:
             limit = slice(self.time)
-        
+        if path is None:
+            path = self.path
 
-        self.performance = self.import_data_df[val_col].to_numpy()[limit]
-        self.dates = self.import_data_df[date_col].to_numpy()[limit]
+        if dataframes and rebalancing:
+
+            if limits is None:
+                if type(path) == list:
+                    limits = [pa['limit'] for pa in path]
+                else:
+                    limits = [limit for _ in range(len(dataframes))]
+
+            limits = [df[limit] for df in dataframes]
+            weights = [pa['weight'] for pa in path]
+
+            if not np.all([dataframes[0].loc[limits[0],date_col].to_numpy() == dataframes[i].loc[limits[i],date_col].to_numpy() for i in range(1, len(dataframes))]):
+                warnings.warn('The dates of the dataframes are not equal. The first dataframe will be used as the reference.')
+
+            self.performance = _rebalancing_data(
+                                                time=time,
+                                                performance=performance,
+                                                dataframes=dataframes,
+                                                limits=limits,
+                                                weights=weights,
+                                                rebalancing_period=rebalancing_period,
+                                                val_col=val_col
+                                                )
+            self.dates = self.import_data_df[date_col].to_numpy()[limits[0]]
+
+        else:
+            self.performance = self.import_data_df[val_col].to_numpy()[limit]
+            self.dates = self.import_data_df[date_col].to_numpy()[limit]
 
         if normalize:
             self.performance = self.performance * self.initial_investment / self.performance[0]
@@ -835,6 +886,30 @@ class ChartImport(PerformanceAnalyzer):
 
         super().print_parameters()
 
+def _rebalancing_data(
+                    time, 
+                    performance, 
+                    dataframes, 
+                    limits,
+                    weights,
+                    rebalancing_period,
+                    val_col
+                    ):
+    
+    dataframes = [df[limits[i]] for i, df in enumerate(dataframes)]
+    dataframes = [df.reset_index(drop=True) for df in dataframes]
+
+    for i in range(1, time):
+
+        if (i-1) % rebalancing_period == 0:
+            for j, df in enumerate(dataframes):
+                df[val_col] /= df.loc[i-1, val_col]
+
+        performance[i] = performance[(i-1)//rebalancing_period * rebalancing_period] * np.sum([df.loc[i, val_col] * weights[j] for j, df in enumerate(dataframes)])
+
+    return performance
+
+
 def _parallel_sim_computation(i, sim):
     performance = sim.simulate_performance()[0]
     buy_and_hold = sim.buy_and_hold(performance, return_full_arr=False)
@@ -844,7 +919,12 @@ def _parallel_sim_computation(i, sim):
     return performance[-1], *buy_and_hold, *random_swing, *swing_trade
 
 def _parallel_imp_computation(i, imp, stepsize):
-    performance = imp.update_selection(limit=slice(i*stepsize, imp.time + i*stepsize), normalize=True)[0]
+    if hasattr(imp, 'dataframes'):
+        limits = [slice(pa['limit'].start + i*stepsize, pa['limit'].stop + i*stepsize) for pa in imp.path]
+        performance = imp.update_selection(limits=limits, normalize=True, rebalancing=True)[0]
+    else:
+        performance = imp.update_selection(limit=slice(i*stepsize, imp.time + i*stepsize), normalize=True)[0]
+
     buy_and_hold = imp.buy_and_hold(performance, return_full_arr=False)
     random_swing = imp.random_swing_trade(performance, return_full_arr=False)
     swing_trade = imp.swing_trade(performance, return_full_arr=False)
@@ -1075,23 +1155,80 @@ class MonteCarloSimulation:
 
 if __name__ == "__main__":
 
+
+    #General parameters
     years = 5
     time = int(261 * years)
-    saving_plan = {12*i+1: 500 * 1.02**(i*12) for i in range(0,years)}
-    #saving_plan = 500
-    sim = ChartSimulation(time=time, saving_plan=saving_plan)
 
-    mc = MonteCarloSimulation()
-    mc.mc_artificial_chart(n=500, parallel=False)
+    n = 6978 + 600
 
-    mc.chartsim.simulate_performance()
-    mc.chartsim.buy_and_hold()
-    mc.chartsim.swing_trade()
-    mc.chartsim.random_swing_trade()
+    #Import parameters
+    path = [{'path':'data/msci_complete.csv', 'weight': 0.5, 'limit': slice(n, time+n), },
+            {'path':'data/msci_em_1998.csv', 'weight': 0.5, 'limit': slice(0, time)},]
+    
+    rebalancing_period = 261 * 3
+
+    limit = None
+
+    # path = 'data/msci_complete.csv'
+    # limit = slice(n, time+n)
+
+    # path = 'data/msci_em_1998.csv'         
+    # limit = slice(0, time)    
 
 
-    mc.chartsim.plot_performance()
-    mc.chartsim.print_results()
+    #Trade parameters
+    trades = 10 * years
+    max_trades = 20 * years
+    hold_time = [30,5,5,0]
+    time_after_reversel = 0
+    smooth_period = 20
 
-    mc.hist_performance(bins=50)
-    mc.print_results()
+    trade_cost = [2,0]
+    spread = 0.002
+    asset_cost = 0.001
+    tax_rate = 0.25
+    tax_allowance = 1000
+
+
+    initial_investment = 5000
+    saving_plan_period = 22
+    #saving_plan = {12*i+1: 500 * 1.0**(i*12) for i in range(0,years)}
+    saving_plan = 500
+
+
+    chim =  ChartImport(  initial_investment=initial_investment, saving_plan=saving_plan, saving_plan_period=saving_plan_period, time=time, 
+                        trades=trades, max_trades=max_trades, hold_time=hold_time, time_after_reversel=time_after_reversel, smooth_period=smooth_period, 
+                        trade_cost=trade_cost, spread=spread, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance,
+                        path=path, rebalancing_period=rebalancing_period, limit=limit
+                        )
+
+    performance, dates = chim.load_data()
+
+    buy_and_hold_performance = chim.buy_and_hold()[0]
+    random_swing_performance = chim.random_swing_trade()[0]
+    swing_performance = chim.swing_trade()[0]
+
+    plt.plot(chim.performance)
+
+
+    # years = 5
+    # time = int(261 * years)
+    # saving_plan = {12*i+1: 500 * 1.02**(i*12) for i in range(0,years)}
+    # #saving_plan = 500
+    # sim = ChartSimulation(time=time, saving_plan=saving_plan)
+
+    # mc = MonteCarloSimulation()
+    # mc.mc_artificial_chart(n=500, parallel=False)
+
+    # mc.chartsim.simulate_performance()
+    # mc.chartsim.buy_and_hold()
+    # mc.chartsim.swing_trade()
+    # mc.chartsim.random_swing_trade()
+
+
+    # mc.chartsim.plot_performance()
+    # mc.chartsim.print_results()
+
+    # mc.hist_performance(bins=50)
+    # mc.print_results()
