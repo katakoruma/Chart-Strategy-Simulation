@@ -369,16 +369,15 @@ class PerformanceAnalyzer(object):
             return self.buy_and_hold_performance[-1], self.buy_and_hold_ttwror[-1], self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost
 
 
-    def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, *args, **kwargs):
+    def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, parallel=True, *args, **kwargs):
         
-        if performance == 'buy_and_hold':
-            performance = self.buy_and_hold_performance[-1]
-        elif performance == 'swing_trade':
-            performance = self.swing_trade_performance[-1]
-        elif performance == 'random_swing_trade':
-            performance = self.random_swing_performance[-1]
-        elif type(performance) == float:
-            raise ValueError('Performance must be either buy_and_hold, swing_trade or random_swing_trade or a float')
+        if type(performance) == str:
+            if performance == 'buy_and_hold':
+                performance = self.buy_and_hold_performance[-1]
+            elif performance == 'swing_trade':
+                performance = self.swing_trade_performance[-1]
+            elif performance == 'random_swing_trade':
+                performance = self.random_swing_performance[-1]
         
         if initial_investment is None:
             initial_investment = self.initial_investment
@@ -395,26 +394,39 @@ class PerformanceAnalyzer(object):
             trade_dates = [i for i in range(self.time) if i % saving_plan_period == 0 and i != 0]
 
 
-        def eq_return(x):
+        if type(saving_plan) == dict:
+            changing_executions = list(saving_plan.keys())
+            changing_executions.sort()
 
-            if type(saving_plan) == dict:
-                changing_executions = list(saving_plan.keys())
-                changing_executions.sort()
-
+            def eq_return(x, performance):
                 return (initial_investment * x**(time/length_of_year) 
                         + np.sum([saving_plan[changing_executions[j]] 
-                                  * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates[changing_executions[j]:changing_executions[j+1]]]) 
-                          for j in range(len(changing_executions)-1)])
+                                    * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates[changing_executions[j]:changing_executions[j+1]]]) 
+                            for j in range(len(changing_executions)-1)])
                         - performance )
 
-            elif type(saving_plan) == float or type(saving_plan) == int:
+        elif type(saving_plan) == float or type(saving_plan) == int:
+
+            def eq_return(x, performance):
                 return (initial_investment * x**(time/length_of_year) 
                         + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) 
                         - performance )
 
         yearly_performance = (performance/initial_investment)**((length_of_year/time))
 
-        return fsolve(eq_return, yearly_performance)[0]
+        if type(yearly_performance) == np.ndarray:
+            print("Computing IRR for multiple values")
+
+            if parallel:
+                num_cores = multiprocessing.cpu_count()
+                results = Parallel(n_jobs=num_cores)(delayed(lambda x0,args: fsolve(eq_return, x0=x0, args=args)[0])(yearly_performance[i], performance[i]) for i in tqdm(range(len(yearly_performance))))
+            else:
+                results = [fsolve(eq_return, x0=yearly_performance[i], args=(performance[i]))[0] for i in tqdm(range(len(yearly_performance)))]
+
+            return np.array(results)
+
+        else:
+            return fsolve(eq_return, x0=yearly_performance, args=(performance))[0]
 
     
     def plot_performance(self, log=False, *args, **kwargs):
@@ -1194,7 +1206,7 @@ class MonteCarloSimulation:
             'Asset Cost': [np.nan, np.nan, np.nan]
         }
 
-        internal_rates = [internal_rate_func(self.buy_and_hold_profit[i]) for i in range(len(self.buy_and_hold_profit))]
+        internal_rates = internal_rate_func(self.buy_and_hold_profit)
         data['Buy and Hold'] = {
             'Overall Return': [self.buy_and_hold_profit.mean(), self.buy_and_hold_profit.std(), np.median(self.buy_and_hold_profit)],
             'Relative Performance (%)': [np.mean(factor_to_percentage(self.buy_and_hold_profit / total_investment)), np.std(factor_to_percentage(self.buy_and_hold_profit / total_investment)), np.median(factor_to_percentage(self.buy_and_hold_profit / total_investment))],
@@ -1206,7 +1218,7 @@ class MonteCarloSimulation:
             'Asset Cost': [np.mean(self.buy_and_hold_asset_cost), np.std(self.buy_and_hold_asset_cost), np.median(self.buy_and_hold_asset_cost)]
         }
 
-        internal_rates = [internal_rate_func(self.swing_trade_profit[i]) for i in range(len(self.swing_trade_profit))]
+        internal_rates = internal_rate_func(self.swing_trade_profit)
         data['Swing Trade'] = {
             'Overall Return': [self.swing_trade_profit.mean(), self.swing_trade_profit.std(), np.median(self.swing_trade_profit)],
             'Relative Performance (%)': [np.mean(factor_to_percentage(self.swing_trade_profit / total_investment)), np.std(factor_to_percentage(self.swing_trade_profit / total_investment)), np.median(factor_to_percentage(self.swing_trade_profit / total_investment))],
@@ -1218,7 +1230,7 @@ class MonteCarloSimulation:
             'Asset Cost': [np.mean(self.swing_trade_asset_cost), np.std(self.swing_trade_asset_cost), np.median(self.swing_trade_asset_cost)]
         }
 
-        internal_rates = [internal_rate_func(self.random_swing_profit[i]) for i in range(len(self.random_swing_profit))]
+        internal_rates = internal_rate_func(self.random_swing_profit)
         data['Random Swing Trade'] = {
             'Overall Return': [self.random_swing_profit.mean(), self.random_swing_profit.std(), np.median(self.random_swing_profit)],
             'Relative Performance (%)': [np.mean(factor_to_percentage(self.random_swing_profit / total_investment)), np.std(factor_to_percentage(self.random_swing_profit / total_investment)), np.median(factor_to_percentage(self.random_swing_profit / total_investment))],
@@ -1239,6 +1251,7 @@ class MonteCarloSimulation:
         self.results_mc_df = pd.DataFrame(df_data, index=index, columns=metrics).T
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
+            print()
             print(self.results_mc_df.map(lambda x: f"{x:,.{accuracy}f}" if isinstance(x, (int, float)) else x))
 
 
