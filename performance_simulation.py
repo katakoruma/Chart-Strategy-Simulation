@@ -793,31 +793,27 @@ class MonteCarloSimulation:
         if parallel:
             num_cores = multiprocessing.cpu_count()
             results = Parallel(n_jobs=num_cores)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
-
-            for i in range(n): (
-                self.index_profit[i], 
-                self.buy_and_hold_profit[i], 
-                self.buy_and_hold_ttwror[i],
-                self.buy_and_hold_transaction_cost[i], 
-                self.buy_and_hold_tax[i],
-                self.buy_and_hold_asset_cost[i],
-                self.random_swing_profit[i], 
-                self.random_swing_ttwror[i],
-                self.random_swing_transaction_cost[i], 
-                self.random_swing_tax[i], 
-                self.random_swing_asset_cost[i],
-                self.swing_trade_profit[i], 
-                self.swing_trade_ttwror[i],
-                self.swing_trade_transaction_cost[i], 
-                self.swing_trade_tax[i],
-                self.swing_trade_asset_cost[i]
-                 ) = results[i]
         else:
-            for i in tqdm(range(n)):
-                self.index_profit[i] = self.chartsim.simulate_performance(**kwargs)[0][-1]
-                self.buy_and_hold_profit[i], self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartsim.buy_and_hold(return_full_arr=False, **kwargs)
-                self.random_swing_profit[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartsim.random_swing_trade(return_full_arr=False, **kwargs)
-                self.swing_trade_profit[i],  self.swing_trade_ttwror[i], self.swing_trade_transaction_cost[i], self.swing_trade_tax[i], self.swing_trade_asset_cost[i] = self.chartsim.swing_trade(return_full_arr=False, **kwargs)
+            results = [_parallel_sim_computation(i, self.chartsim) for i in tqdm(range(n))]
+
+        for i in range(n): (
+            self.index_profit[i], 
+            self.buy_and_hold_profit[i], 
+            self.buy_and_hold_ttwror[i],
+            self.buy_and_hold_transaction_cost[i], 
+            self.buy_and_hold_tax[i],
+            self.buy_and_hold_asset_cost[i],
+            self.random_swing_profit[i], 
+            self.random_swing_ttwror[i],
+            self.random_swing_transaction_cost[i], 
+            self.random_swing_tax[i], 
+            self.random_swing_asset_cost[i],
+            self.swing_trade_profit[i], 
+            self.swing_trade_ttwror[i],
+            self.swing_trade_transaction_cost[i], 
+            self.swing_trade_tax[i],
+            self.swing_trade_asset_cost[i]
+                ) = results[i]
 
         self.index_profit = self.index_profit[:,-1]
 
@@ -853,32 +849,27 @@ class MonteCarloSimulation:
         if parallel:
             num_cores = multiprocessing.cpu_count()
             results = Parallel(n_jobs=num_cores)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
-
-            for i in range(n): (
-                self.index_profit[i], 
-                self.buy_and_hold_profit[i], 
-                self.buy_and_hold_ttwror[i],
-                self.buy_and_hold_transaction_cost[i], 
-                self.buy_and_hold_tax[i],
-                self.buy_and_hold_asset_cost[i],
-                self.random_swing_profit[i], 
-                self.random_swing_ttwror[i],
-                self.random_swing_transaction_cost[i], 
-                self.random_swing_tax[i], 
-                self.random_swing_asset_cost[i],
-                self.swing_trade_profit[i], 
-                self.swing_trade_ttwror[i],
-                self.swing_trade_transaction_cost[i], 
-                self.swing_trade_tax[i],
-                self.swing_trade_asset_cost[i]
-                 ) = results[i]
         else:
-            for i in tqdm(range(n)):
-                self.index_profit[i] = self.chartsim.simulate_performance(**kwargs)[0][-1]
-                self.buy_and_hold_profit[i], self.buy_and_hold_ttwror[i], self.buy_and_hold_transaction_cost[i], self.buy_and_hold_tax[i], self.buy_and_hold_asset_cost[i] = self.chartimp.buy_and_hold(return_full_arr=False, **kwargs)
-                self.random_swing_profit[i], self.random_swing_ttwror[i], self.random_swing_transaction_cost[i], self.random_swing_tax[i], self.random_swing_asset_cost[i] = self.chartimp.random_swing_trade(return_full_arr=False, **kwargs)
-                self.swing_trade_profit[i],  self.swing_trade_ttwror[i], self.swing_trade_transaction_cost[i], self.swing_trade_tax[i], self.swing_trade_asset_cost[i] = self.chartimp.swing_trade(return_full_arr=False, **kwargs)
+            results = [_parallel_imp_computation(i, self.chartimp, stepsize) for i in tqdm(range(n))]
 
+        for i in range(n): (
+            self.index_profit[i], 
+            self.buy_and_hold_profit[i], 
+            self.buy_and_hold_ttwror[i],
+            self.buy_and_hold_transaction_cost[i], 
+            self.buy_and_hold_tax[i],
+            self.buy_and_hold_asset_cost[i],
+            self.random_swing_profit[i], 
+            self.random_swing_ttwror[i],
+            self.random_swing_transaction_cost[i], 
+            self.random_swing_tax[i], 
+            self.random_swing_asset_cost[i],
+            self.swing_trade_profit[i], 
+            self.swing_trade_ttwror[i],
+            self.swing_trade_transaction_cost[i], 
+            self.swing_trade_tax[i],
+            self.swing_trade_asset_cost[i]
+                ) = results[i]
 
         self.index_profit = self.index_profit[:,-1]
 
