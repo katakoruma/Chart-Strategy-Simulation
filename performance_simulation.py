@@ -758,8 +758,22 @@ class ChartImport(PerformanceAnalyzer):
             dataframes = []
 
             for pa in path:
+                if 'val_col' in pa.keys():
+                    temp_val_col = pa['val_col']
+                else:
+                    temp_val_col = val_col
+                if 'date_col' in pa.keys():
+                    temp_date_col = pa['date_col']
+                else:
+                    temp_date_col = date_col
+
+
                 dataframes.append(pd.read_csv(pa['path']))
                 dataframes[-1].reset_index(drop=True, inplace=True)
+
+                dataframes[-1].rename(columns={temp_val_col: val_col}, inplace=True)
+                dataframes[-1].rename(columns={temp_date_col: date_col}, inplace=True)
+
                 dataframes[-1][date_col] = pd.to_datetime(dataframes[-1][date_col])
                 dataframes[-1].sort_values(by=date_col, ascending=True, inplace=True)
 
@@ -818,6 +832,7 @@ class ChartImport(PerformanceAnalyzer):
     
     def update_selection(
                          self, 
+                         time=None,
                          performance=None, 
                          dataframes=None, 
                          date_col=None, 
@@ -825,12 +840,16 @@ class ChartImport(PerformanceAnalyzer):
                          limit=None,
                          limits=None,
                          path=None,  
+                         weights=None,
                          rebalancing_period=None, 
                          normalize=True, 
                          rebalancing=False, 
+                         warn=False,
                          *args, **kwargs
                          ):
 
+        if time is None:
+            time = self.time
         if performance is None:
             performance = self.performance
         if dataframes is None and hasattr(self, 'dataframes'):
@@ -851,11 +870,12 @@ class ChartImport(PerformanceAnalyzer):
                     limits = [pa['limit'] for pa in path]
                 else:
                     limits = [limit for _ in range(len(dataframes))]
+            if weights is None:
+                weights = [pa['weight'] for pa in path]
+            if rebalancing_period is None:
+                rebalancing_period = self.rebalancing_period
 
-            limits = [df[limit] for df in dataframes]
-            weights = [pa['weight'] for pa in path]
-
-            if not np.all([dataframes[0].loc[limits[0],date_col].to_numpy() == dataframes[i].loc[limits[i],date_col].to_numpy() for i in range(1, len(dataframes))]):
+            if warn and not np.all([dataframes[0].loc[limits[0],date_col].to_numpy() == dataframes[i].loc[limits[i],date_col].to_numpy() for i in range(1, len(dataframes))]):
                 warnings.warn('The dates of the dataframes are not equal. The first dataframe will be used as the reference.')
 
             self.performance = _rebalancing_data(
