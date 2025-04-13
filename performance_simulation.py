@@ -133,7 +133,7 @@ class PerformanceAnalyzer(object):
             raise ValueError('Saving plan must be either a float, an integer or a dictionary')
         
         assert np.isclose(self.total_investment, self.investet_over_time[-1]), 'Something went wrong. The total investment does not match the sum of the saving plan and the initial investment'
-
+        self.saving_plan_sched = self.saving_plan_sched.astype(np.float64)
         self.__saving_plan = saving_plan
 
 
@@ -369,7 +369,7 @@ class PerformanceAnalyzer(object):
             return self.buy_and_hold_performance[-1], self.buy_and_hold_ttwror[-1], self.buy_and_hold_transaction_cost, self.buy_and_hold_tax, self.buy_and_hold_asset_cost
 
 
-    def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan=None, saving_plan_period=None, time=None, length_of_year=None, parallel=True, *args, **kwargs):
+    def internal_rate_of_return(self, performance=None, initial_investment=None, trade_dates=None, saving_plan_sched=None, saving_plan_period=None, time=None, length_of_year=None, parallel=True, num_workers=None, *args, **kwargs):
         
         if type(performance) == str:
             if performance == 'buy_and_hold':
@@ -381,36 +381,18 @@ class PerformanceAnalyzer(object):
         
         if initial_investment is None:
             initial_investment = self.initial_investment
-        if saving_plan is None:
-            saving_plan = self.saving_plan
+        if saving_plan_sched is None:
+            saving_plan_sched = self.saving_plan_sched
         if saving_plan_period is None:
             saving_plan_period = self.saving_plan_period
         if time is None:
             time = self.time
         if length_of_year is None:
             length_of_year = self.length_of_year
-
         if trade_dates is None:
             trade_dates = [i for i in range(self.time) if i % saving_plan_period == 0 and i != 0]
-
-
-        if type(saving_plan) == dict:
-            changing_executions = list(saving_plan.keys())
-            changing_executions.sort()
-
-            def eq_return(x, performance):
-                return (initial_investment * x**(time/length_of_year) 
-                        + np.sum([saving_plan[changing_executions[j]] 
-                                    * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates[changing_executions[j]:changing_executions[j+1]]]) 
-                            for j in range(len(changing_executions)-1)])
-                        - performance )
-
-        elif type(saving_plan) == float or type(saving_plan) == int:
-
-            def eq_return(x, performance):
-                return (initial_investment * x**(time/length_of_year) 
-                        + saving_plan * np.sum([x**(time/length_of_year - i/length_of_year) for i in trade_dates]) 
-                        - performance )
+        if num_workers is None:
+            num_workers = multiprocessing.cpu_count()
 
         yearly_performance = (performance/initial_investment)**((length_of_year/time))
 
@@ -418,15 +400,14 @@ class PerformanceAnalyzer(object):
             print("Computing IRR for multiple values")
 
             if parallel:
-                num_cores = multiprocessing.cpu_count()
-                results = Parallel(n_jobs=num_cores)(delayed(lambda x0,args: fsolve(eq_return, x0=x0, args=args)[0])(yearly_performance[i], performance[i]) for i in tqdm(range(len(yearly_performance))))
+                results = Parallel(n_jobs=num_workers)(delayed(lambda x0,args: fsolve(eq_return, x0=x0, args=args)[0])(yearly_performance[i], (performance[i], time, initial_investment, length_of_year, saving_plan_sched, trade_dates)) for i in tqdm(range(len(yearly_performance))))
             else:
-                results = [fsolve(eq_return, x0=yearly_performance[i], args=(performance[i]))[0] for i in tqdm(range(len(yearly_performance)))]
+                results = [fsolve(eq_return, x0=yearly_performance[i], args=(performance[i], time, initial_investment, length_of_year, saving_plan_sched, trade_dates))[0] for i in tqdm(range(len(yearly_performance)))]
 
             return np.array(results)
 
         else:
-            return fsolve(eq_return, x0=yearly_performance, args=(performance))[0]
+            return fsolve(eq_return, x0=yearly_performance, args=(performance, time, initial_investment, length_of_year, saving_plan_sched, trade_dates))[0]
 
     
     def plot_performance(self, log=False, *args, **kwargs):
@@ -510,7 +491,6 @@ class PerformanceAnalyzer(object):
 
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
             print(self.results_df.map(lambda x: f"{x:,.{accuracy}f}" if isinstance(x, (int, float)) else x))
-    
 
 
     def print_parameters(self):
@@ -617,6 +597,26 @@ def _compute_performance(
         ttwror[i+1] = swing_performance[i+1] / value_at_last_trade[1] * ttwror_factor
 
     return swing_performance, ttwror, payed_transaction_cost, payed_tax, payed_asset_cost
+
+#@njit(parallel=False)
+def eq_return(x, performance, time, initial_investment, length_of_year, saving_plan_sched, trade_dates):
+
+    f_time = np.float64(time)
+    f_length_of_year = np.float64(length_of_year)
+    f_performance = np.float64(performance)
+    f_initial_investment = np.float64(initial_investment)
+
+    total_sum = 0.0
+    for i in trade_dates:
+        f_i = np.float64(i)
+        expo1 = (f_time/f_length_of_year - f_i/f_length_of_year)
+        total_sum += saving_plan_sched[i+1] * x**expo1
+
+    expo2 = time/length_of_year
+
+    result = f_initial_investment * x**expo2 + total_sum - f_performance 
+    
+    return result
 
 
 def smooth(y, box_pts):
@@ -1039,13 +1039,14 @@ class MonteCarloSimulation:
         self.chartimp = chartimp
         self.parallel = parallel
 
-    def mc_artificial_chart(self, n=1000, parallel=None, *args, **kwargs):
+    def mc_artificial_chart(self, n=1000, parallel=None, num_workers=None, *args, **kwargs):
 
         if self.chartsim is None:
             self.chartsim = ChartSimulation(**kwargs)
-
         if parallel is None:
             parallel = self.parallel
+        if num_workers is None:
+            num_workers = multiprocessing.cpu_count()
         
         self.index_profit = np.zeros((n, self.chartsim.time))
         self.buy_and_hold_profit = np.zeros(n)
@@ -1061,8 +1062,7 @@ class MonteCarloSimulation:
         self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
-            num_cores = multiprocessing.cpu_count()
-            results = Parallel(n_jobs=num_cores)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
+            results = Parallel(n_jobs=num_workers)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
         else:
             results = [_parallel_sim_computation(i, self.chartsim) for i in tqdm(range(n))]
 
@@ -1089,19 +1089,19 @@ class MonteCarloSimulation:
 
         return self.index_profit, self.buy_and_hold_profit, self.random_swing_profit, self.swing_trade_profit
     
-    def mc_import_chart(self, n=1000, stepsize=1, parallel=None, *args, **kwargs):
+    def mc_import_chart(self, n=1000, stepsize=1, parallel=None, num_workers=None, *args, **kwargs):
 
         if stepsize * n + self.chartimp.time > len(self.chartimp.import_data_df):
             raise ValueError(f"Stepsize * n + time is larger than the length of the data: {stepsize}, n: {n}, time: {self.chartimp.time}, data length: {len(self.chartimp.import_data_df)}")
 
         if self.chartimp is None:
             self.chartimp = ChartImport(**kwargs)
-        
         if self.chartimp.import_data_df is None:
             self.chartimp.load_data(**kwargs)
-
         if parallel is None:
             parallel = self.parallel
+        if num_workers is None:
+            num_workers = multiprocessing.cpu_count()
 
         self.index_profit = np.zeros((n, self.chartimp.time))
         self.buy_and_hold_profit = np.zeros(n)
@@ -1117,8 +1117,7 @@ class MonteCarloSimulation:
         self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
-            num_cores = multiprocessing.cpu_count()
-            results = Parallel(n_jobs=num_cores)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
+            results = Parallel(n_jobs=num_workers)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
         else:
             results = [_parallel_imp_computation(i, self.chartimp, stepsize) for i in tqdm(range(n))]
 
