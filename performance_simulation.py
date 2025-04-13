@@ -1256,80 +1256,23 @@ class MonteCarloSimulation:
 
 if __name__ == "__main__":
 
-
-    #General parameters
     years = 5
     time = int(261 * years)
+    saving_plan = {12*i+1: 500 * 1.02**(i*12) for i in range(0,years)}
+    #saving_plan = 500
+    sim = ChartSimulation(time=time, saving_plan=saving_plan)
 
-    n = 6978 + 600
+    mc = MonteCarloSimulation()
+    mc.mc_artificial_chart(n=500, parallel=False)
 
-    #Import parameters
-    path = [{'path':'data/msci_complete.csv', 'weight': 0.5, 'limit': slice(n, time+n), },
-            {'path':'data/msci_em_1998.csv', 'weight': 0.5, 'limit': slice(0, time)},]
-    
-    rebalancing_period = 261 * 3
-
-    limit = None
-
-    # path = 'data/msci_complete.csv'
-    # limit = slice(n, time+n)
-
-    # path = 'data/msci_em_1998.csv'         
-    # limit = slice(0, time)    
+    mc.chartsim.simulate_performance()
+    mc.chartsim.buy_and_hold()
+    mc.chartsim.swing_trade()
+    mc.chartsim.random_swing_trade()
 
 
-    #Trade parameters
-    trades = 10 * years
-    max_trades = 20 * years
-    hold_time = [30,5,5,0]
-    time_after_reversel = 0
-    smooth_period = 20
+    mc.chartsim.plot_performance()
+    mc.chartsim.print_results()
 
-    trade_cost = [2,0]
-    spread = 0.002
-    asset_cost = 0.001
-    tax_rate = 0.25
-    tax_allowance = 1000
-
-
-    initial_investment = 5000
-    saving_plan_period = 22
-    #saving_plan = {12*i+1: 500 * 1.0**(i*12) for i in range(0,years)}
-    saving_plan = 500
-
-
-    chim =  ChartImport(  initial_investment=initial_investment, saving_plan=saving_plan, saving_plan_period=saving_plan_period, time=time, 
-                        trades=trades, max_trades=max_trades, hold_time=hold_time, time_after_reversel=time_after_reversel, smooth_period=smooth_period, 
-                        trade_cost=trade_cost, spread=spread, asset_cost=asset_cost, tax_rate=tax_rate, tax_allowance=tax_allowance,
-                        path=path, rebalancing_period=rebalancing_period, limit=limit
-                        )
-
-    performance, dates = chim.load_data()
-
-    buy_and_hold_performance = chim.buy_and_hold()[0]
-    random_swing_performance = chim.random_swing_trade()[0]
-    swing_performance = chim.swing_trade()[0]
-
-    plt.plot(chim.performance)
-
-
-    # years = 5
-    # time = int(261 * years)
-    # saving_plan = {12*i+1: 500 * 1.02**(i*12) for i in range(0,years)}
-    # #saving_plan = 500
-    # sim = ChartSimulation(time=time, saving_plan=saving_plan)
-
-    # mc = MonteCarloSimulation()
-    # mc.mc_artificial_chart(n=500, parallel=False)
-
-    # mc.chartsim.simulate_performance()
-    # mc.chartsim.buy_and_hold()
-    # mc.chartsim.swing_trade()
-    # mc.chartsim.random_swing_trade()
-
-
-    # mc.chartsim.plot_performance()
-    # mc.chartsim.print_results()
-
-    # mc.hist_performance(bins=50)
-    # mc.print_results()
+    mc.hist_performance(bins=50)
+    mc.print_results()
