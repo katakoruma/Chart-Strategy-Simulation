@@ -12,22 +12,43 @@ import warnings
 class PerformanceAnalyzer(object):
 
     def __init__(self, 
-                 time=261, 
-                 length_of_year=261,
-                 initial_investment=1, 
-                 saving_plan=0,
-                 saving_plan_period=22,
-                 smooth_period=5, 
-                 max_trades=20,  
-                 hold_time=[14,3,7,0], 
-                 time_after_reversel=0, 
-                 trade_cost=0, 
-                 spread=0, 
-                 asset_cost=0,
-                 tax_rate=0,
-                 tax_allowance=0,
+                 time: int = 261,
+                 length_of_year: int = 261,
+                 initial_investment: float = 1.0,
+                 saving_plan: float | dict = 0.0,
+                 saving_plan_period: int = 22,
+                 smooth_period: int = 5,
+                 max_trades: int = 20,
+                 hold_time: list = [14, 3, 7, 0],
+                 time_after_reversel: int = 0, 
+                 trade_cost: float | list = 0.0,
+                 spread: float | list = 0.0, 
+                 asset_cost: float = 0.0,
+                 tax_rate: float = 0.0,
+                 tax_allowance: float = 0.0,
                  *args, **kwargs):
-        
+            
+        """
+        Initializes the performance simulation parameters.
+        Args:
+            time (int, optional): The total time period for the simulation. Defaults to 261.
+            length_of_year (int, optional): The number of trading days in a year. Defaults to 261.
+            initial_investment (float, optional): The initial amount of investment. Defaults to 1.
+            saving_plan (float, optional): The amount added periodically as part of a saving plan. Defaults to 0.
+            saving_plan_period (int, optional): The period (in days) for the saving plan contributions. Defaults to 22.
+            smooth_period (int, optional): The period used for smoothing data. Defaults to 5.
+            max_trades (int, optional): The maximum number of trades allowed. Defaults to 20.
+            hold_time (list, optional): A list defining the holding time for trades. 1st value: hold time in trade. 2nd value: hold time out of trade. 3rd value: Std of 1st value. 4th value: Std of 2nd value. Defaults to [14, 3, 7, 0].
+            time_after_reversel (int, optional): The time period after a reversal event. Defaults to 0.
+            trade_cost (float, optional): The cost associated with each trade. Defaults to 0.
+            spread (float, optional): The spread cost for trades. Defaults to 0.
+            asset_cost (float, optional): The cost associated with holding assets. Defaults to 0.
+            tax_rate (float, optional): The tax rate applied to profits. Defaults to 0.
+            tax_allowance (float, optional): The tax-free allowance for profits. Defaults to 0.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+        """
+            
         self.time = time
         self.length_of_year = length_of_year
 
@@ -150,7 +171,35 @@ class PerformanceAnalyzer(object):
                            tax_rate=None, 
                            tax_allowance=None,
                            return_full_arr=True,
-                           *args, **kwargs):
+                           *args, **kwargs):   
+        
+        """
+        Simulates a random swing trade strategy and computes the performance metrics.
+        Parameters:
+            data (array-like, optional): Performance data to use for the simulation. Defaults to `self.performance`.
+            trade_dates (array-like, optional): Specific trade dates to use. If None, trade dates are generated randomly.
+            max_trades (int, optional): Maximum number of trades to execute. Defaults to `self.max_trades`.
+            hold_time (tuple, optional): Tuple specifying the mean and standard deviation for holding periods 
+                                            (buy-hold and sell-hold). Defaults to `self.hold_time`.
+            trade_cost (float, optional): Cost per trade. Defaults to `self.trade_cost`.
+            spread (float, optional): Spread cost for trades. Defaults to `self.spread`.
+            saving_plan (dict or float, optional): Saving plan contributions. Can be a dictionary with time keys 
+                                                    or a fixed value. Defaults to `self.saving_plan`.
+            saving_plan_period (int, optional): Period for saving plan contributions. Defaults to `self.saving_plan_period`.
+            asset_cost (float, optional): Cost of holding assets. Defaults to `self.asset_cost`.
+            tax_rate (float, optional): Tax rate applied to gains. Defaults to `self.tax_rate`.
+            tax_allowance (float, optional): Tax-free allowance for gains. Defaults to `self.tax_allowance`.
+            return_full_arr (bool, optional): If True, returns the full performance arrays. If False, returns only 
+                                                the final values. Defaults to True.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+        Returns:
+            tuple: Depending on `return_full_arr`, either:
+                - Full arrays: (random_swing_performance, random_swing_ttwror, random_swing_transaction_cost, 
+                                random_swing_tax, random_swing_asset_cost)
+                - Final values: (random_swing_performance[-1], random_swing_ttwror[-1], random_swing_transaction_cost, 
+                                    random_swing_tax, random_swing_asset_cost)
+        """
 
         if max_trades is None:
             max_trades = self.max_trades
@@ -231,6 +280,31 @@ class PerformanceAnalyzer(object):
                     tax_allowance=None,
                     return_full_arr=True,
                     *args, **kwargs):
+        
+        """
+        Simulates a swing trading strategy based on the provided parameters and data.
+        Parameters:
+            data (array-like, optional): The performance data to analyze. Defaults to `self.performance`.
+            trade_dates (array-like, optional): Specific dates for trades. If None, trade dates are calculated automatically. Defaults to None.
+            smooth_period (int, optional): The period for smoothing the data. Defaults to `self.smooth_period`.
+            max_trades (int, optional): Maximum number of trades allowed. Defaults to `self.max_trades`.
+            hold_time (tuple, optional): Tuple specifying hold times for long and short positions. Defaults to `self.hold_time`.
+            time_after_reversel (int, optional): Time delay after a trend reversal before entering a trade. Defaults to `self.time_after_reversel`.
+            trade_cost (float, optional): Cost per trade. Defaults to `self.trade_cost`.
+            spread (float, optional): Spread cost for trades. Defaults to `self.spread`.
+            saving_plan (dict or float, optional): Saving plan contributions. Can be a dictionary with time keys or a constant value. Defaults to `self.saving_plan`.
+            saving_plan_period (int, optional): Period for saving plan contributions. Defaults to `self.saving_plan_period`.
+            asset_cost (float, optional): Cost of holding the asset. Defaults to `self.asset_cost`.
+            tax_rate (float, optional): Tax rate applied to gains. Defaults to `self.tax_rate`.
+            tax_allowance (float, optional): Tax-free allowance for gains. Defaults to `self.tax_allowance`.
+            return_full_arr (bool, optional): If True, returns full arrays of performance metrics. If False, returns only the final values. Defaults to True.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+        Returns:
+            tuple: Depending on `return_full_arr`, either:
+                - Full arrays of swing trade performance, time-weighted rate of return (TTWROR), transaction costs, taxes, and asset costs.
+                - Final values of swing trade performance, TTWROR, transaction costs, taxes, and asset costs.
+        """
 
         if smooth_period is None:
             smooth_period = self.smooth_period
@@ -319,6 +393,38 @@ class PerformanceAnalyzer(object):
                      tax_allowance=None,
                      return_full_arr=True,
                      *args, **kwargs):
+
+        """
+        Simulates a buy-and-hold investment strategy and computes the performance metrics.
+        Parameters:
+            data (numpy.ndarray, optional): The performance data to be used for the simulation. 
+                Defaults to `self.performance`.
+            trade_cost (float, optional): The cost of executing trades. Defaults to `self.trade_cost`.
+            spread (float, optional): The bid-ask spread. Defaults to `self.spread`.
+            saving_plan (float or dict, optional): The amount to be invested periodically. Can be a 
+                fixed amount or a dictionary with time keys and investment values. Defaults to `self.saving_plan`.
+            saving_plan_period (int, optional): The period of the saving plan in terms of time steps. 
+                Defaults to `self.saving_plan_period`.
+            asset_cost (float, optional): The cost associated with holding the asset. Defaults to `self.asset_cost`.
+            tax_rate (float, optional): The tax rate applied to gains. Defaults to `self.tax_rate`.
+            tax_allowance (float, optional): The tax-free allowance for gains. Defaults to `self.tax_allowance`.
+            return_full_arr (bool, optional): If True, returns the full performance arrays. If False, 
+                returns only the final values. Defaults to True.
+            *args: Additional arguments.
+            **kwargs: Additional keyword arguments.
+        Returns:
+            tuple: Depending on `return_full_arr`, returns either:
+                - Full arrays: 
+                    (buy_and_hold_performance, buy_and_hold_ttwror, buy_and_hold_transaction_cost, 
+                    buy_and_hold_tax, buy_and_hold_asset_cost)
+                - Final values:
+                    (final_performance, final_ttwror, buy_and_hold_transaction_cost, 
+                    buy_and_hold_tax, buy_and_hold_asset_cost)
+        Notes:
+            - The method uses `_compute_performance` to calculate the performance metrics.
+            - If `saving_plan` is a dictionary, the keys represent time steps, and the values represent 
+                the corresponding investment amounts.
+        """
 
         if trade_cost is None:
             trade_cost = self.trade_cost
@@ -630,102 +736,140 @@ def factor_to_percentage(factor):
     return (factor - 1) * 100
 
 
-class ChartSimulation(PerformanceAnalyzer):
-
-        def __init__(self,dt=15, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="fixed_gain_phase", *args, **kwargs):
-            # Call the parent class's __init__ method to initialize inherited attributes
-            super().__init__(*args, **kwargs)
-            
-            # Initialize additional attributes specific to ChartSimulation
-            self.dt = dt
-            self.yearly_return = yearly_return
-            self.daily_return = daily_return
-            self.daily_loss = daily_loss
-            self.gain_phase = gain_phase
-            self.loss_phase = loss_phase
-            self.mode = mode
-            # Additional initialization logic for ChartSimulation
-
-        def simulate_performance(self, 
-                                    time=None,
-                                    dt=None,
-                                    length_of_year=None,
-                                    yearly_return=None,
-                                    initial_investment=None,
-                                    gain_phase=None,
-                                    loss_phase=None,
-                                    daily_return=None,
-                                    daily_loss=None,
-                                    mode=None,
-                                 *args, **kwargs
-                                 ):
-
-
-            if time is None:
-                time = self.time
-            if dt is None:
-                dt = self.dt
-            if length_of_year is None:
-                length_of_year = self.length_of_year
-            if yearly_return is None:
-                yearly_return = self.yearly_return
-            if initial_investment is None:
-                initial_investment = self.initial_investment
-            if gain_phase is None:
-                gain_phase = self.gain_phase
-            if loss_phase is None:
-                loss_phase = self.loss_phase
-            if daily_return is None:
-                daily_return = self.daily_return
-            if daily_loss is None:
-                daily_loss = self.daily_loss
-            if mode is None:
-                mode = self.mode
-            
-
-            if mode == "fixed_gain_phase":
-                daily_return = yearly_return**(1/length_of_year/(2*gain_phase-1))
-                daily_loss = 1/daily_return
-
-            elif mode == "fixed_return":
-                gain_phase = np.log(yearly_return**(1/length_of_year)/daily_loss) / np.log(daily_return/daily_loss)
-                loss_phase = 1 - gain_phase 
-            else:
-                raise ValueError("Mode must be either fixed_gain_phase or fixed_return")
-
-            self.expected_total_return = daily_return**(gain_phase * time) * daily_loss**(loss_phase * time)
-
-
-            performance, phase = _generate_index(
-                                                        time=time,
-                                                        dt=dt,
-                                                        length_of_year=length_of_year,
-                                                        yearly_return=yearly_return,
-                                                        initial_investment=initial_investment,
-                                                        gain_phase=gain_phase,
-                                                        loss_phase=loss_phase,
-                                                        daily_return=daily_return,
-                                                        daily_loss=daily_loss,
-                                                        mode=mode,
-                                                    )
-
-            self.performance = performance
-            self.phase = phase
-
-            return performance, phase
+class ChartSimulation(PerformanceAnalyzer):     
+    """
+    ChartSimulation is a class that extends the PerformanceAnalyzer class to simulate 
+    the performance of an investment over time based on various parameters such as 
+    daily returns, daily losses, gain and loss phases, and yearly returns. It provides 
+    methods for simulating performance and printing simulation parameters.
+    Attributes:
+        dt (int): Time step for the simulation in days. Default is 15.
+        yearly_return (float): Expected yearly return as a multiplier. Default is 1.07.
+        daily_return (float): Daily return as a multiplier. Default is 1.001.
+        daily_loss (float): Daily loss as a multiplier. Default is 0.999.
+        gain_phase (float): Fraction of time spent in the gain phase. Default is 0.7.
+        loss_phase (float): Fraction of time spent in the loss phase. Default is 0.3.
+        mode (str): Mode of simulation, either "fixed_gain_phase" or "fixed_return". Default is "fixed_gain_phase".
+    Methods:
+        simulate_performance(time=None, dt=None, length_of_year=None, yearly_return=None, 
+                             initial_investment=None, gain_phase=None, loss_phase=None, 
+                             daily_return=None, daily_loss=None, mode=None, *args, **kwargs):
+            Simulates the performance of an investment based on the provided parameters.
+            Computes the expected total return and generates the performance index and phase.
+            Parameters:
+                time (float, optional): Total time for the simulation. Defaults to None.
+                dt (int, optional): Time step for the simulation. Defaults to None.
+                length_of_year (int, optional): Number of time steps in a year. Defaults to None.
+                yearly_return (float, optional): Expected yearly return. Defaults to None.
+                initial_investment (float, optional): Initial investment amount. Defaults to None.
+                gain_phase (float, optional): Fraction of time spent in the gain phase. Defaults to None.
+                loss_phase (float, optional): Fraction of time spent in the loss phase. Defaults to None.
+                daily_return (float, optional): Daily return multiplier. Defaults to None.
+                daily_loss (float, optional): Daily loss multiplier. Defaults to None.
+                mode (str, optional): Simulation mode, either "fixed_gain_phase" or "fixed_return". Defaults to None.
+                *args: Additional positional arguments.
+                **kwargs: Additional keyword arguments.
+            Returns:
+                tuple: A tuple containing the performance index and the phase.
+        print_parameters():
+            Prints the parameters used for the simulation, including yearly return, 
+            expected total return, daily return, daily loss, gain phase, and loss phase.
+    """
         
-        def print_parameters(self):
+    def __init__(self,dt=15, yearly_return=1.07, daily_return=1.001, daily_loss=0.999, gain_phase=0.7, loss_phase=0.3, mode="fixed_gain_phase", *args, **kwargs):
+        # Call the parent class's __init__ method to initialize inherited attributes
+        super().__init__(*args, **kwargs)
+        
+        # Initialize additional attributes specific to ChartSimulation
+        self.dt = dt
+        self.yearly_return = yearly_return
+        self.daily_return = daily_return
+        self.daily_loss = daily_loss
+        self.gain_phase = gain_phase
+        self.loss_phase = loss_phase
+        self.mode = mode
+        # Additional initialization logic for ChartSimulation
 
-            print("Simulation parameters: \n")
-            print("Yearly return: ", self.yearly_return)
-            print("Expected total return: ", self.expected_total_return)
-            print("Daily return: ", self.daily_return)
-            print("Daily loss: ", self.daily_loss)
-            print("Gain phase: ", self.gain_phase)
-            print("Loss phase: ", self.loss_phase)
-            print("\n")
+    def simulate_performance(self, 
+                                time=None,
+                                dt=None,
+                                length_of_year=None,
+                                yearly_return=None,
+                                initial_investment=None,
+                                gain_phase=None,
+                                loss_phase=None,
+                                daily_return=None,
+                                daily_loss=None,
+                                mode=None,
+                                *args, **kwargs
+                                ):
 
-            super().print_parameters()
+
+        if time is None:
+            time = self.time
+        if dt is None:
+            dt = self.dt
+        if length_of_year is None:
+            length_of_year = self.length_of_year
+        if yearly_return is None:
+            yearly_return = self.yearly_return
+        if initial_investment is None:
+            initial_investment = self.initial_investment
+        if gain_phase is None:
+            gain_phase = self.gain_phase
+        if loss_phase is None:
+            loss_phase = self.loss_phase
+        if daily_return is None:
+            daily_return = self.daily_return
+        if daily_loss is None:
+            daily_loss = self.daily_loss
+        if mode is None:
+            mode = self.mode
+        
+
+        if mode == "fixed_gain_phase":
+            daily_return = yearly_return**(1/length_of_year/(2*gain_phase-1))
+            daily_loss = 1/daily_return
+
+        elif mode == "fixed_return":
+            gain_phase = np.log(yearly_return**(1/length_of_year)/daily_loss) / np.log(daily_return/daily_loss)
+            loss_phase = 1 - gain_phase 
+        else:
+            raise ValueError("Mode must be either fixed_gain_phase or fixed_return")
+
+        self.expected_total_return = daily_return**(gain_phase * time) * daily_loss**(loss_phase * time)
+
+
+        performance, phase = _generate_index(
+                                                    time=time,
+                                                    dt=dt,
+                                                    length_of_year=length_of_year,
+                                                    yearly_return=yearly_return,
+                                                    initial_investment=initial_investment,
+                                                    gain_phase=gain_phase,
+                                                    loss_phase=loss_phase,
+                                                    daily_return=daily_return,
+                                                    daily_loss=daily_loss,
+                                                    mode=mode,
+                                                )
+
+        self.performance = performance
+        self.phase = phase
+
+        return performance, phase
+    
+    def print_parameters(self):
+
+        print("Simulation parameters: \n")
+        print("Yearly return: ", self.yearly_return)
+        print("Expected total return: ", self.expected_total_return)
+        print("Daily return: ", self.daily_return)
+        print("Daily loss: ", self.daily_loss)
+        print("Gain phase: ", self.gain_phase)
+        print("Loss phase: ", self.loss_phase)
+        print("\n")
+
+        super().print_parameters()
         
 
 @njit(parallel=False)
@@ -758,6 +902,32 @@ def _generate_index(
 
 
 class ChartImport(PerformanceAnalyzer):
+    """
+    ChartImport is a class that extends the PerformanceAnalyzer class to handle the import, processing, 
+    and analysis of performance data from CSV files or multiple data sources. It provides functionality 
+    to load data, normalize it, and perform rebalancing operations.
+    Attributes:
+        path (str or list): Path to the CSV file or a list of dictionaries containing paths, weights, 
+            and limits for multiple data sources.
+        date_col (str): Column name representing dates in the data.
+        val_col (str): Column name representing values in the data.
+        rebalancing_period (int): Period for rebalancing weights across data sources.
+        limit (slice): Slice object to limit the data selection.
+        import_data_df (pd.DataFrame): DataFrame containing the imported data.
+    Methods:
+        load_data(path=None, date_col=None, val_col=None, limit=None, normalize=True, time=None, 
+                  length_of_year=None, rebalancing_period=None, *args, **kwargs):
+            Loads and processes performance data from a CSV file or multiple data sources. 
+            Supports normalization and rebalancing.
+        update_selection(time=None, performance=None, dataframes=None, date_col=None, val_col=None, 
+                         limit=None, limits=None, path=None, weights=None, rebalancing_period=None, 
+                         normalize=True, rebalancing=False, warn=False, *args, **kwargs):
+            Supports rebalancing and normalization.
+        print_parameters():
+            Prints the current parameters of the ChartImport instance, including the path and 
+            inherited parameters from the PerformanceAnalyzer class.
+
+    """
 
     def __init__(self, 
                  path="data/msci_complete.csv", 
@@ -927,6 +1097,37 @@ class ChartImport(PerformanceAnalyzer):
                          *args, **kwargs
                          ):
 
+        """
+        Updates the selection of performance data based on the provided parameters.
+
+        Parameters:
+            time (optional): The time range for the selection. Defaults to `self.time`.
+            performance (optional): The performance data to update. Defaults to `self.performance`.
+            dataframes (list, optional): A list of dataframes containing performance data. Defaults to `self.dataframes` if available.
+            date_col (str, optional): The column name representing dates in the dataframes. Defaults to `self.date_col`.
+            val_col (str, optional): The column name representing values in the dataframes. Defaults to `self.val_col`.
+            limit (slice, optional): A slice object to limit the data selection. Defaults to `slice(self.time)`.
+            limits (list, optional): A list of slice objects for each dataframe. Defaults to `None`.
+            path (list or dict, optional): A list or dictionary containing 'limit' and 'weight' for each dataframe. Defaults to `self.path`.
+            weights (list, optional): A list of weights for each dataframe. Defaults to `None`.
+            rebalancing_period (int, optional): The period for rebalancing the weights. Defaults to `self.rebalancing_period`.
+            normalize (bool, optional): Whether to normalize the performance data. Defaults to `True`.
+            rebalancing (bool, optional): Whether to perform rebalancing of weights. Defaults to `False`.
+            warn (bool, optional): Whether to issue a warning if the dates in the dataframes are not equal. Defaults to `False`.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            tuple: A tuple containing:
+                - performance (numpy.ndarray): The updated performance data.
+                - dates (numpy.ndarray): The corresponding dates for the performance data.
+
+        Notes:
+            - If `dataframes` and `rebalancing` are provided, the function performs rebalancing of weights across the dataframes.
+            - If `warn` is `True`, a warning is issued if the dates in the dataframes are not equal.
+            - If `normalize` is `True`, the performance data is normalized based on the initial investment.
+        """
+
         if time is None:
             time = self.time
         if performance is None:
@@ -1011,7 +1212,7 @@ def _rebalancing_data(
     return performance
 
 
-def _parallel_sim_computation(i, sim):
+def _sim_computation(i, sim):
     performance = sim.simulate_performance()[0]
     buy_and_hold = sim.buy_and_hold(performance, return_full_arr=False)
     random_swing = sim.random_swing_trade(performance, return_full_arr=False)
@@ -1019,7 +1220,7 @@ def _parallel_sim_computation(i, sim):
 
     return performance[-1], *buy_and_hold, *random_swing, *swing_trade
 
-def _parallel_imp_computation(i, imp, stepsize):
+def _imp_computation(i, imp, stepsize):
     if hasattr(imp, 'dataframes'):
         limits = [slice(pa['limit'].start + i*stepsize, pa['limit'].stop + i*stepsize) for pa in imp.path]
         performance = imp.update_selection(limits=limits, normalize=True, rebalancing=True)[0]
@@ -1033,8 +1234,39 @@ def _parallel_imp_computation(i, imp, stepsize):
     return performance[-1], *buy_and_hold, *random_swing, *swing_trade
 
 class MonteCarloSimulation:
+    """
+    MonteCarloSimulation Class
+    This class provides methods to perform Monte Carlo simulations for evaluating the performance of various investment strategies. 
+    It supports both artificial chart simulations and imported chart data simulations, with options for parallel processing.
+        chartsim (object): An instance of a chart simulation class, used for artificial chart simulations.
+        chartimp (object): An instance of a chart import class, used for imported chart data simulations.
+        parallel (bool): A flag indicating whether to use parallel processing for simulations.
+    Methods:
+        __init__(chartsim=None, chartimp=None, parallel=True, *args, **kwargs):
+            Initializes the MonteCarloSimulation class with optional chart simulation or import objects and parallel processing flag.
+        mc_artificial_chart(n=1000, parallel=None, num_workers=None, *args, **kwargs):
+            Performs Monte Carlo simulations using artificial chart data. Supports parallel processing.
+        mc_import_chart(n=1000, stepsize=1, parallel=None, num_workers=None, *args, **kwargs):
+            Performs Monte Carlo simulations using imported chart data. Supports parallel processing.
+        hist_performance(bins=50, limits=None, *args, **kwargs):
+            Plots histograms of the performance distributions for various investment strategies.
+        print_results(accuracy=1, *args, **kwargs):
+            Prints the performance simulation results for various investment strategies, including metrics such as overall return, 
+            relative performance, TTWROR, yearly performance, internal rate of return, taxes, transaction costs, and asset costs.
+        - The class assumes the presence of `ChartSimulation` and `ChartImport` classes for artificial and imported chart data, respectively.
+        - Parallel processing is implemented using the `joblib` library.
+        - The `factor_to_percentage` function is used to convert factors to percentage values in the results.
 
-    def __init__(self, chartsim=None, chartimp=None, parallel=True, *args, **kwargs):
+    """
+
+
+    def __init__(self, 
+                 chartsim: ChartSimulation=None,
+                 chartimp: ChartImport=None,
+                 parallel: bool=True,
+                *args, **kwargs
+                ):
+        
         self.chartsim = chartsim
         self.chartimp = chartimp
         self.parallel = parallel
@@ -1062,9 +1294,9 @@ class MonteCarloSimulation:
         self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
-            results = Parallel(n_jobs=num_workers)(delayed(_parallel_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
+            results = Parallel(n_jobs=num_workers)(delayed(_sim_computation)(i, self.chartsim) for i in tqdm(range(n)))
         else:
-            results = [_parallel_sim_computation(i, self.chartsim) for i in tqdm(range(n))]
+            results = [_sim_computation(i, self.chartsim) for i in tqdm(range(n))]
 
         for i in range(n): (
             self.index_profit[i], 
@@ -1117,9 +1349,9 @@ class MonteCarloSimulation:
         self.swing_trade_transaction_cost, self.swing_trade_tax, self.swing_trade_asset_cost = np.zeros(n), np.zeros(n), np.zeros(n)
 
         if parallel:
-            results = Parallel(n_jobs=num_workers)(delayed(_parallel_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
+            results = Parallel(n_jobs=num_workers)(delayed(_imp_computation)(i, self.chartimp, stepsize) for i in tqdm(range(n)))
         else:
-            results = [_parallel_imp_computation(i, self.chartimp, stepsize) for i in tqdm(range(n))]
+            results = [_imp_computation(i, self.chartimp, stepsize) for i in tqdm(range(n))]
 
         for i in range(n): (
             self.index_profit[i], 
@@ -1165,6 +1397,46 @@ class MonteCarloSimulation:
         plt.show()
 
     def print_results(self, accuracy=1, *args, **kwargs):
+        """
+        Prints the performance simulation results for various investment strategies.
+
+        This method calculates and displays metrics such as overall return, relative 
+        performance, TTWROR (Time-Weighted Rate of Return), yearly performance, 
+        internal rate of return, taxes, transaction costs, and asset costs for 
+        different strategies including Index Performance, Buy and Hold, Swing Trade, 
+        and Random Swing Trade.
+
+        Parameters:
+            accuracy (int, optional): The number of decimal places to display in the 
+                results. Defaults to 1.
+            *args: Additional positional arguments (not used in this method).
+            **kwargs: Additional keyword arguments (not used in this method).
+
+        Attributes:
+            results_mc_df (pd.DataFrame): A DataFrame containing the calculated metrics 
+                for each strategy, organized by mean, standard deviation, and median.
+
+        Notes:
+            - The method assumes that the `chartsim` or `chartimp` object is available 
+              and provides attributes such as `time`, `length_of_year`, `total_investment`, 
+              `initial_investment`, and `internal_rate_of_return`.
+            - The method uses pre-calculated profits, taxes, transaction costs, and 
+              asset costs for each strategy, which are expected to be attributes of 
+              the class instance.
+            - The `factor_to_percentage` function is used to convert factors to 
+              percentage values.
+            - The results are printed in a formatted table using pandas.
+
+        Example:
+            >>> simulation.print_results(accuracy=2)
+            Initial investment:  10,000
+            Total investment:  15,000
+
+            Strategy               Metric                     Mean       Std      Median
+            Index Performance      Overall Return             5,000.00   500.00   5,000.00
+                                   Relative Performance (%)   50.00      5.00     50.00
+                                   ...
+        """
 
         if not self.chartsim is None:
             time = self.chartsim.time
